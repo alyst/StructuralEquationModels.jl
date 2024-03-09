@@ -58,10 +58,10 @@ struct RAMMatrices <: SemSpecification
     S_ind::ArrayParamsMap
     F_ind::Vector{Int}
     M_ind::Union{ArrayParamsMap, Nothing}
-    parameters::Any
-    colnames::Any
+    parameters::Vector{Symbol}
+    colnames::Vector{Symbol}
     constants::Vector{RAMConstant}
-    size_F::Any
+    size_F::Tuple{Int, Int}
 end
 
 ############################################################################################
