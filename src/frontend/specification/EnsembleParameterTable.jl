@@ -2,7 +2,8 @@
 ### Types
 ############################################################################################
 
-mutable struct EnsembleParameterTable{C} <: AbstractParameterTable
+mutable struct EnsembleParameterTable{C <: AbstractDict{<:Any, ParameterTable}} <:
+               AbstractParameterTable
     tables::C
 end
 
@@ -49,15 +50,11 @@ end =#
 ### get parameter table from RAMMatrices
 ############################################################################################
 
-function EnsembleParameterTable(args...; groups)
-    partable = EnsembleParameterTable(nothing)
-
-    for (group, ram_matrices) in zip(groups, args)
-        push!(partable.tables, group => ParameterTable(ram_matrices))
-    end
-
-    return partable
-end
+EnsembleParameterTable(spec_ensemble::AbstractDict{K}) where {K} = EnsembleParameterTable(
+    Dict{K, ParameterTable}(
+        group => convert(ParameterTable, spec) for (group, spec) in pairs(spec_ensemble)
+    ),
+)
 
 ############################################################################################
 ### Pretty Printing
