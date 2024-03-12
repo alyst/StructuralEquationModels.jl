@@ -1,8 +1,11 @@
 import Statistics: cov, mean
+using NLopt
 
 ############################################################################################
 ### models w.o. meanstructure
 ############################################################################################
+
+semoptimizer = SemOptimizer(engine = opt_engine)
 
 model_ml = Sem(
     specification = spec,
@@ -147,7 +150,7 @@ end
 ### test hessians
 ############################################################################################
 
-if semoptimizer == SemOptimizerOptim
+if opt_engine == :Optim
     using Optim, LineSearches
 
     model_ls = Sem(
