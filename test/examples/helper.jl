@@ -1,3 +1,7 @@
+function is_extended_tests()
+    return get(ENV, "JULIA_EXTENDED_TESTS", "false") == "true"
+end
+
 function test_gradient(model, parameters; rtol = 1e-10, atol = 0)
     true_grad = FiniteDiff.finite_difference_gradient(x -> objective!(model, x)[1], parameters)
     gradient = similar(parameters); gradient .= 1.0
