@@ -33,7 +33,7 @@ function ParameterTable(;
     return ParameterTable(columns,
         !isnothing(observed_vars) ? copy(observed_vars) : Vector{Symbol}(),
         !isnothing(latent_vars) ? copy(latent_vars) : Vector{Symbol}(),
-        sorted_vars)
+        Vector{Symbol}())
 end
 
 ############################################################################################
