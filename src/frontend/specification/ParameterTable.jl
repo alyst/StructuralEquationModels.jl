@@ -38,9 +38,7 @@ end
 ### Convert to other types
 ############################################################################################
 
-import Base.Dict
-
-function Dict(partable::ParameterTable)
+function Base.convert(::Type{Dict}, partable::ParameterTable)
     return partable.columns
 end
 

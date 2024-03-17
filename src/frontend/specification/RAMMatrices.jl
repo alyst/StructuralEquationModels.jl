@@ -278,25 +278,6 @@ Base.convert(::Type{<:ParameterTable}, ram_matrices::RAMMatrices) =
     ParameterTable(ram_matrices)
 
 ############################################################################################
-### get RAMMatrices from EnsembleParameterTable
-############################################################################################
-
-function RAMMatrices(partable::EnsembleParameterTable)
-    ram_matrices = Dict{Symbol, RAMMatrices}()
-
-    parameters, n_par, par_positions = get_par_npar_identifier(partable)
-    par_id =
-        Dict(:parameters => parameters, :n_par => n_par, :par_positions => par_positions)
-
-    for key in keys(partable.tables)
-        ram_mat = RAMMatrices(partable.tables[key]; par_id = par_id)
-        push!(ram_matrices, key => ram_mat)
-    end
-
-    return ram_matrices
-end
-
-############################################################################################
 ### Pretty Printing
 ############################################################################################
 
