@@ -139,6 +139,18 @@ nparams(imply::SemImply) = nparams(imply.ram_matrices)
 abstract type SemImplySymbolic{MS, HE} <: SemImply{MS, HE} end
 
 """
+State of `SemImply` that corresponds to the specific SEM parameter values.
+
+Contains the necessary vectors and matrices for calculating the SEM
+objective, gradient and hessian (whichever is requested).
+"""
+abstract type SemImplyState end
+
+imply(state::SemImplyState) = state.imply
+MeanStructure(state::SemImplyState) = MeanStructure(imply(state))
+ApproximateHessian(state::SemImplyState) = ApproximateHessian(imply(state))
+
+"""
     Sem(;observed = SemObservedData, imply = RAM, loss = SemML, optimizer = SemOptimizerOptim, kwargs...)
 
 Constructor for the basic `Sem` type.
