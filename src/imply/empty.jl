@@ -49,4 +49,7 @@ hessian!(imply::ImplyEmpty, par, model) = nothing
 ### Recommended methods
 ############################################################################################
 
+params(imply::ImplyEmpty) = params(imply.ram_matrices)
+nparams(imply::ImplyEmpty) = nparams(imply.ram_matrices)
+
 update_observed(imply::ImplyEmpty, observed::SemObserved; kwargs...) = imply

@@ -256,6 +256,9 @@ objective_gradient_hessian!(imply::RAM, par, model::AbstractSemSingle, has_means
 ### Recommended methods
 ############################################################################################
 
+params(imply::RAM) = params(imply.ram_matrices)
+nparams(imply::RAM) = nparams(imply.ram_matrices)
+
 function update_observed(imply::RAM, observed::SemObserved; kwargs...)
     if n_man(observed) == size(imply.Σ, 1)
         return imply
