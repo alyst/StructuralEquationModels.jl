@@ -30,12 +30,22 @@ function start_fabin3(observed::SemObservedMissing, imply, optimizer, args...; k
     return start_fabin3(imply.ram_matrices, observed.em_model.Σ, observed.em_model.μ)
 end
 
-function start_fabin3(ram_matrices::RAMMatrices, Σ, μ)
+function start_fabin3(
+    ram_matrices::RAMMatrices,
+    Σ::AbstractMatrix,
+    μ::Union{AbstractVector, Nothing},
+)
     A, S, F, M, n_par = ram_matrices.A,
     ram_matrices.S,
     ram_matrices.F,
     ram_matrices.M,
     nparams(ram_matrices)
+
+    if !isnothing(M) && isnothing(μ)
+        throw(ArgumentError("RAM has meanstructure, but no observed means provided."))
+    elseif isnothing(M) && !isnothing(μ)
+        throw(ArgumentError("RAM has no meanstructure, but observed means provided."))
+    end
 
     start_val = zeros(n_par)
     F_var2obs = Dict(
