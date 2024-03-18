@@ -60,9 +60,12 @@ function SemFIML(; observed, specification, kwargs...)
     imp_inv = zeros(nman, nman)
     mult = similar.(inverses)
 
-    ∇ind = vec(CartesianIndices(Array{Float64}(undef, nman, nman)))
-    ∇ind =
-        [findall(x -> !(x[1] ∈ ind || x[2] ∈ ind), ∇ind) for ind in patterns_not(observed)]
+    # linear indicies of co-observed variable pairs for each pattern
+    Σ_linind = LinearIndices((nman, nman))
+    ∇ind = [
+        [Σ_linind[CartesianIndex(x, y)] for x in ind, y in ind] for
+        ind in patterns_not(observed)
+    ]
 
     return SemFIML(
         inverses,
