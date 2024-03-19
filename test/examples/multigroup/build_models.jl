@@ -14,6 +14,8 @@ model_g2 = Sem(
     imply = RAM
 )
 
+@test SEM.params(model_g1.imply.ram_matrices) == SEM.params(model_g2.imply.ram_matrices)
+
 model_ml_multigroup = SemEnsemble(model_g1, model_g2; optimizer = semoptimizer)
 
 
@@ -39,7 +41,7 @@ end
         solution_lav[:fitmeasures_ml]; rtol = 1e-2, atol = 1e-7)
 
     update_partable!(
-        partable, identifier(model_ml_multigroup), se_hessian(solution_ml), :se)
+        partable, params(model_ml_multigroup), se_hessian(solution_ml), :se)
     test_estimates(
         partable,
         solution_lav[:parameter_estimates_ml]; atol = 1e-3,
@@ -98,7 +100,7 @@ end
         solution_lav[:fitmeasures_ml]; rtol = 1e-2, atol = 1e-7)
 
     update_partable!(
-        partable_s, identifier(model_ml_multigroup), se_hessian(solution_ml), :se)
+        partable_s, params(model_ml_multigroup), se_hessian(solution_ml), :se)
     test_estimates(
         partable_s,
         solution_lav[:parameter_estimates_ml]; atol = 1e-3,
@@ -201,7 +203,7 @@ end
         fitmeasure_names = fitmeasure_names_ls, rtol = 1e-2, atol = 1e-5)
 
     update_partable!(
-        partable, identifier(model_ls_multigroup), se_hessian(solution_ls), :se)
+        partable, params(model_ls_multigroup), se_hessian(solution_ls), :se)
     test_estimates(
         partable,
         solution_lav[:parameter_estimates_ls]; atol = 1e-2,
@@ -271,7 +273,7 @@ end
         solution_lav[:fitmeasures_fiml]; rtol = 1e-3, atol = 0)
 
     update_partable!(
-        partable_miss, identifier(model_ml_multigroup), se_hessian(solution), :se)
+        partable_miss, SEM.params(model_ml_multigroup), se_hessian(solution), :se)
     test_estimates(
         partable_miss,
         solution_lav[:parameter_estimates_fiml]; atol = 1e-3,
