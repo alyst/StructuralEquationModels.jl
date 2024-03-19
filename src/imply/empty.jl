@@ -33,7 +33,7 @@ end
 ### Constructors
 ############################################################################################
 
-function ImplyEmpty(; specification, kwargs...)
+function ImplyEmpty(; specification::SemSpecification, kwargs...)
     return ImplyEmpty(convert(RAMMatrices, specification))
 end
 

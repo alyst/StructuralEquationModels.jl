@@ -296,6 +296,8 @@ Returns the imply part of a model.
 """
 imply(model::AbstractSemSingle) = model.imply
 
+params(model::AbstractSemSingle) = params(imply(model))
+
 """
     loss(model::AbstractSemSingle) -> SemLoss
 
