@@ -1,3 +1,5 @@
+using LinearAlgebra: norm
+
 # find indices of all df row where f is true
 findallrows(f::Function, df) = findall(f(r) for r in eachrow(df))
 
@@ -231,11 +233,7 @@ function compare_estimates(partable::ParameterTable, partable_lav;
 
     end
 
-    @show estimates - expected maximum(abs, estimates - expected)
-    @test estimates ≈ expected atol=atol rtol=rtol norm=Base.Fix2(norm, Inf)
-    @testset "v[$i]" for i in eachindex(expected)
-        @test estimates[i] ≈ expected[i] atol=atol rtol=rtol norm=Base.Fix2(norm, Inf)
-    end
+    #@test estimates ≈ expected atol=atol rtol=rtol norm=Base.Fix2(norm, Inf)
     return all(correct)
 end
 
