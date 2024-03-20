@@ -71,9 +71,9 @@ function SemObservedCovariance(;
     end
 
     if !isnothing(spec_colnames)
-        obs_cov = reorder_obs_cov(obs_cov, spec_colnames, obs_colnames)
-        isnothing(obs_mean) ||
-            (obs_mean = reorder_obs_mean(obs_mean, spec_colnames, obs_colnames))
+        obs2spec_perm = source_to_dest_perm(obs_colnames, spec_colnames)
+        obs_cov = obs_cov[obs2spec_perm, obs2spec_perm]
+        isnothing(obs_mean) || (obs_mean = obs_mean[obs2spec_perm])
     end
 
     return SemObservedCovariance(Symmetric(obs_cov), obs_mean, size(obs_cov, 1), n_obs)
@@ -92,30 +92,3 @@ n_man(observed::SemObservedCovariance) = observed.n_man
 
 obs_cov(observed::SemObservedCovariance) = observed.obs_cov
 obs_mean(observed::SemObservedCovariance) = observed.obs_mean
-
-############################################################################################
-### Additional functions
-############################################################################################
-
-# reorder covariance matrices --------------------------------------------------------------
-function reorder_obs_cov(obs_cov, spec_colnames, obs_colnames)
-    if spec_colnames == obs_colnames
-        return obs_cov
-    else
-        new_position = [findfirst(==(x), obs_colnames) for x in spec_colnames]
-        obs_cov = obs_cov[new_position, new_position]
-        return obs_cov
-    end
-end
-
-# reorder means ----------------------------------------------------------------------------
-
-function reorder_obs_mean(obs_mean, spec_colnames, obs_colnames)
-    if spec_colnames == obs_colnames
-        return obs_mean
-    else
-        new_position = [findfirst(==(x), obs_colnames) for x in spec_colnames]
-        obs_mean = obs_mean[new_position]
-        return obs_mean
-    end
-end
