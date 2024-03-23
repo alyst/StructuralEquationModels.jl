@@ -76,7 +76,7 @@ function SemObservedCovariance(;
             (obs_mean = reorder_obs_mean(obs_mean, spec_colnames, obs_colnames))
     end
 
-    return SemObservedCovariance(obs_cov, obs_mean, size(obs_cov, 1), n_obs)
+    return SemObservedCovariance(Symmetric(obs_cov), obs_mean, size(obs_cov, 1), n_obs)
 end
 
 ############################################################################################
