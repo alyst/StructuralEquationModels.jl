@@ -108,7 +108,7 @@ function RAM(;
     #preallocate arrays
     rand_params = randn(Float64, n_par)
     A_pre = check_acyclic(materialize(ram_matrices.A, rand_params))
-    S_pre = Symmetric(materialize(ram_matrices.S, rand_params))
+    S_pre = Symmetric(sparse_materialize(ram_matrices.S, rand_params))
     F = copy(ram_matrices.F)
 
     # pre-allocate some matrices
