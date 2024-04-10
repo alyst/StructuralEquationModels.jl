@@ -40,9 +40,8 @@ function minus2ll(
     optimizer,
     loss_ml::SemFIML,
 )
-    F = minimum
-    F *= n_obs(observed)
-    F += sum(log(2π) * observed.pattern_n_obs .* observed.pattern_nvar_obs)
+    F = minimum * n_obs(observed)
+    F += log(2π) * sum(pat -> n_obs(pat) * nobserved_vars(pat), observed.patterns)
     return F
 end
 
