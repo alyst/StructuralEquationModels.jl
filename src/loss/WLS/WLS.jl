@@ -171,8 +171,8 @@ function objective_gradient!(semwls::SemWLS, par, model::AbstractSemSingle, has_
             gradient = -2*(σ₋'*V*∇σ + μ₋'*V_μ*∇μ)'
             return objective, gradient
         else
-            objective = dot(σ₋, V, σ₋) 
-            gradient = -2*(σ₋'*V*∇σ)'
+            objective = dot(σ₋, V, σ₋)
+            gradient = -2*(σ₋'*V* ∇σ)'
             return objective, gradient
         end
     end
