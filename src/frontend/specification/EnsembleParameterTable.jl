@@ -2,9 +2,9 @@
 ### Types
 ############################################################################################
 
-mutable struct EnsembleParameterTable{C <: AbstractDict{<:Any, ParameterTable}} <:
-               AbstractParameterTable
-    tables::C
+struct EnsembleParameterTable{K} <: AbstractParameterTable
+    tables::Dict{K, ParameterTable}
+    params::Vector{Symbol}
 end
 
 ############################################################################################
@@ -12,9 +12,37 @@ end
 ############################################################################################
 
 # constuct an empty table
-function EnsembleParameterTable(::Nothing)
-    tables = Dict{Symbol, ParameterTable}()
-    return EnsembleParameterTable(tables)
+EnsembleParameterTable(::Nothing; params::Union{Nothing, Vector{Symbol}} = nothing) =
+    EnsembleParameterTable{Symbol}(
+        Dict{Symbol, ParameterTable}(),
+        isnothing(params) ? Symbol[] : copy(params),
+    )
+
+# dictionary of SEM specifications
+function EnsembleParameterTable(
+    spec_ensemble::AbstractDict{K, V};
+    params::Union{Nothing, Vector{Symbol}} = nothing,
+) where {K, V <: SemSpecification}
+    partables = Dict{K, ParameterTable}(
+        group => convert(ParameterTable, spec; params = params) for
+        (group, spec) in pairs(spec_ensemble)
+    )
+
+    if isnothing(params)
+        # collect all SEM parameters in ensemble if not specified
+        # and apply the set to all partables
+        params =
+            unique(mapreduce(SEM.params, vcat, values(partables), init = Vector{Symbol}()))
+        for partable in values(partables)
+            if partable.params != params
+                copyto!(resize!(partable.params, length(params)), params)
+                #throw(ArgumentError("The parameter sets of the SEM specifications in the ensemble do not match."))
+            end
+        end
+    else
+        params = copy(params)
+    end
+    return EnsembleParameterTable{K}(partables, params)
 end
 
 ############################################################################################
@@ -48,16 +76,6 @@ function DataFrames.DataFrame(
         return df
     end
 end
-
-############################################################################################
-### get parameter table from RAMMatrices
-############################################################################################
-
-EnsembleParameterTable(spec_ensemble::AbstractDict{K}) where {K} = EnsembleParameterTable(
-    Dict{K, ParameterTable}(
-        group => convert(ParameterTable, spec) for (group, spec) in pairs(spec_ensemble)
-    ),
-)
 
 ############################################################################################
 ### Pretty Printing
