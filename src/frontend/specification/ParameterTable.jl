@@ -159,7 +159,7 @@ end
 
 # add a row --------------------------------------------------------------------------------
 
-function Base.push!(partable::ParameterTable, d::AbstractDict{Symbol})
+function Base.push!(partable::ParameterTable, d::Union{AbstractDict{Symbol}, NamedTuple})
     for (key, val) in pairs(d)
         push!(partable.columns[key], val)
     end
@@ -179,7 +179,7 @@ function update_partable!(
     values::AbstractVector,
     column::Symbol,
 )
-    coldata = partable.columns[column]
+    coldata = get!(() -> Vector{eltype(values)}(), partable.columns, column)
     resize!(coldata, length(partable))
     for (i, id) in enumerate(partable.columns[:identifier])
         if !(id == :const)
