@@ -90,7 +90,7 @@ end
 
 # Sorting ----------------------------------------------------------------------------------
 
-function sort!(ensemble_partable::EnsembleParameterTable)
+function Base.sort!(ensemble_partable::EnsembleParameterTable)
     for partable in values(ensemble_partable.tables)
         sort!(partable)
     end
@@ -98,7 +98,7 @@ function sort!(ensemble_partable::EnsembleParameterTable)
     return ensemble_partable
 end
 
-function sort(partable::EnsembleParameterTable)
+function Base.sort(partable::EnsembleParameterTable)
     new_partable = deepcopy(partable)
     sort!(new_partable)
     return new_partable
