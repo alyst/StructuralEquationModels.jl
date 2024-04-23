@@ -58,7 +58,7 @@ struct RAMMatrices <: SemSpecification
     F_ind::Vector{Int}
     M_ind::Union{ArrayParamsMap, Nothing}
     parameters::Vector{Symbol}
-    colnames::Vector{Symbol}
+    colnames::Union{Vector{Symbol}, Nothing}
     constants::Vector{RAMConstant}
     size_F::Tuple{Int, Int}
 end
@@ -73,16 +73,11 @@ function RAMMatrices(;
     F::AbstractMatrix,
     M::Union{AbstractVector, Nothing} = nothing,
     parameters::AbstractVector{Symbol},
-    colnames::AbstractVector{Symbol},
+    colnames::Union{AbstractVector{Symbol}} = nothing,
 )
-    ncols = length(colnames)
+    ncols = size(A, 2)
     size(A, 1) == size(A, 2) || throw(DimensionMismatch("A must be a square matrix"))
     size(S, 1) == size(S, 2) || throw(DimensionMismatch("S must be a square matrix"))
-    size(A, 2) == ncols || throw(
-        DimensionMismatch(
-            "A should have as many rows and columns as colnames length ($(length(colnames))), $(size(A)) found",
-        ),
-    )
     size(S, 2) == ncols || throw(
         DimensionMismatch(
             "S should have as many rows and columns as colnames length ($(length(colnames))), $(size(S)) found",
@@ -93,6 +88,13 @@ function RAMMatrices(;
             "F should have as many columns as colnames length ($(length(colnames))), $(size(F, 2)) found",
         ),
     )
+    if !isnothing(colnames)
+        length(colnames) == ncols || throw(
+            DimensionMismatch(
+                "colnames length ($(length(colnames))) should be equal to the number of columns in A and S ($ncols)",
+            ),
+        )
+    end
     A_indices = array_parameters_map(parameters, A)
     S_indices = array_parameters_map(parameters, S)
     M_indices = !isnothing(M) ? array_parameters_map(parameters, M) : nothing
