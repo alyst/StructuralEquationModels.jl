@@ -80,7 +80,16 @@ end
 ### Additional Methods
 ############################################################################################
 
-# Sorting ----------------------------------------------------------------------------------
+# get the vector of all parameters in the table
+# the position of the parameter is based on its first appearance in the table (and the ensemble)
+function params(partable::EnsembleParameterTable)
+    params = Vector{Symbol}()
+    for tbl in values(partable.tables)
+        append!(params, tbl.columns[:identifier])
+    end
+    return filter!(!=(:const), unique!(params)) # exclude constants
+end
+
 
 # Sorting ----------------------------------------------------------------------------------
 
