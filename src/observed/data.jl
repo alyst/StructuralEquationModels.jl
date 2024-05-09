@@ -39,9 +39,9 @@ use this if you are sure your observed data is in the right format.
 """
 struct SemObservedData{A, B, C} <: SemObserved
     data::A
+    observed_vars::Vector{Symbol}
     obs_cov::B
     obs_mean::C
-    n_man::Int
     n_obs::Int
 end
 
@@ -99,7 +99,7 @@ function SemObservedData(;
         data = Matrix(data)
     end
 
-    return SemObservedData(data,
+    return SemObservedData(data, observed_vars,
         compute_covariance ? Symmetric(cov(data)) : nothing,
         meanstructure ? vec(Statistics.mean(data, dims = 1)) : nothing,
         size(data, 2), size(data, 1))
@@ -110,7 +110,7 @@ end
 ############################################################################################
 
 n_obs(observed::SemObservedData) = observed.n_obs
-n_man(observed::SemObservedData) = observed.n_man
+n_man(observed::SemObservedData) = length(observed.observed_vars)
 
 ############################################################################################
 ### additional methods

@@ -105,6 +105,7 @@ If you have a special kind of data, e.g. ordinal data, you should implement a su
 abstract type SemObserved end
 
 get_data(observed::SemObserved) = observed.data
+observed_vars(observed::SemObserved) = observed.observed_vars
 
 """
 Supertype of all objects that can serve as the imply field of a SEM.
