@@ -14,6 +14,9 @@ function Sem(;
     set_field_type_kwargs!(kwdict, observed, imply, loss, optimizer, O, I, D)
 
     observed, imply, loss, optimizer = get_fields!(kwdict, observed, imply, loss, optimizer)
+    if observed_vars(observed) != observed_vars(imply.ram_matrices)
+        throw(ArgumentError("observed_vars differ between the data and the model specification"))
+    end
 
     sem = Sem(observed, imply, loss, optimizer)
 

@@ -155,6 +155,14 @@ mutable struct Sem{O <: SemObserved, I <: SemImply, L <: SemLoss, D <: SemOptimi
     imply::I
     loss::L
     optimizer::D
+
+    function Sem(observed::O, imply::I, loss::L, optimizer::D) where {O, I, L, D}
+        # check integrity
+        observed_vars(observed) == observed_vars(imply.ram_matrices) ||
+            throw(ArgumentError("Observed and imply variables do not match."))
+
+        return new{O,I,L,D}(observed, imply, loss, optimizer)
+    end
 end
 
 ############################################################################################
