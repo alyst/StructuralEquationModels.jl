@@ -37,18 +37,14 @@ use this if you are sure your observed data is in the right format.
 ## Additional keyword arguments:
 - `spec_colnames::Vector{Symbol} = nothing`: overwrites column names of the specification object
 """
-struct SemObservedMissing{
-        A <: AbstractMatrix,
-        P <: SemObservedMissingPattern,
-        T <: Real
-        } <: SemObserved
-    data::A
+struct SemObservedMissing{T <: Real, S <: Real} <: SemObserved
+    data::Matrix{Union{T, Missing}}
     observed_vars::Vector{Symbol}
     n_obs::Int
-    patterns::Vector{P}
+    patterns::Vector{SemObservedMissingPattern{T, S}}
 
-    obs_cov::Matrix{T}
-    obs_mean::Vector{T}
+    obs_cov::Matrix{S}
+    obs_mean::Vector{S}
 end
 
 ############################################################################################
@@ -56,50 +52,12 @@ end
 ############################################################################################
 
 function SemObservedMissing(;
-        specification::Union{SemSpecification, Nothing},
         data,
-
         obs_colnames = nothing,
-        spec_colnames = nothing,
-
         kwargs...)
 
-    if isnothing(spec_colnames) && !isnothing(specification)
-        spec_colnames = observed_vars(specification)
-    end
-
-    if !isnothing(spec_colnames)
-        if isnothing(obs_colnames)
-            try
-                data = data[:, spec_colnames]
-            catch
-                throw(ArgumentError(
-                    "Your `data` can not be indexed by symbols. "*
-                    "Maybe you forgot to provide column names via the `obs_colnames = ...` argument.")
-                    )
-            end
-        else
-            if data isa DataFrame
-                throw(ArgumentError(
-                    "You passed your data as a `DataFrame`, but also specified `obs_colnames`. "*
-                    "Please make sure the column names of your data frame indicate the correct variables "*
-                    "or pass your data in a different format.")
-                    )
-            end
-
-            if !(eltype(obs_colnames) <: Symbol)
-                throw(ArgumentError("please specify `obs_colnames` as a vector of Symbols"))
-            end
-
-            data = data[:, source_to_dest_perm(obs_colnames, spec_colnames)]
-        end
-    end
-
-    if data isa DataFrame
-        data = Matrix(data)
-    end
-
-    n_obs, n_man = size(data)
+    data, observed_vars = prepare_data(data, obs_colnames)
+    n_obs = size(data, 1)
 
     # detect all different missing patterns with their row indices
     pattern_to_rows = Dict{BitVector, Vector{Int}}()

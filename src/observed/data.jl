@@ -37,11 +37,12 @@ use this if you are sure your observed data is in the right format.
 - `spec_colnames::Vector{Symbol} = nothing`: overwrites column names of the specification object
 - `compute_covariance::Bool ) = true`: should the covariance of `data` be computed and stored?
 """
-struct SemObservedData{A, B, C} <: SemObserved
-    data::A
+struct SemObservedData{D <: Union{Nothing, AbstractMatrix}} <: SemObserved
+    data::D
     observed_vars::Vector{Symbol}
-    obs_cov::B
-    obs_mean::C
+
+    obs_cov::Matrix{Float64}
+    obs_mean::Vector{Float64}
     n_obs::Int
 end
 
@@ -53,56 +54,16 @@ end
 
 
 function SemObservedData(;
-        specification::Union{SemSpecification, Nothing},
         data,
-
-        obs_colnames = nothing,
-        spec_colnames = nothing,
-
-        meanstructure = false,
-        compute_covariance = true,
-
+        obs_colnames::Union{AbstractVector{Symbol}, Nothing} = nothing,
         kwargs...)
 
-    if isnothing(spec_colnames) && !isnothing(specification)
-        spec_colnames = observed_vars(specification)
-    end
-
-    if !isnothing(spec_colnames)
-        if isnothing(obs_colnames)
-            try
-                data = data[:, spec_colnames]
-            catch
-                throw(ArgumentError(
-                    "Your `data` can not be indexed by symbols. "*
-                    "Maybe you forgot to provide column names via the `obs_colnames = ...` argument.")
-                    )
-            end
-        else
-            if data isa DataFrame
-                throw(ArgumentError(
-                    "You passed your data as a `DataFrame`, but also specified `obs_colnames`. "*
-                    "Please make sure the column names of your data frame indicate the correct variables "*
-                    "or pass your data in a different format.")
-                    )
-            end
-
-            if !(eltype(obs_colnames) <: Symbol)
-                throw(ArgumentError("please specify `obs_colnames` as a vector of Symbols"))
-            end
-
-            data = data[:, source_to_dest_perm(obs_colnames, spec_colnames)]
-        end
-    end
-
-    if data isa DataFrame
-        data = Matrix(data)
-    end
+    data, observed_vars = prepare_data(data, obs_colnames)
+    obs_mean, obs_cov = mean_and_cov(data, 1)
 
     return SemObservedData(data, observed_vars,
-        compute_covariance ? Symmetric(cov(data)) : nothing,
-        meanstructure ? vec(Statistics.mean(data, dims = 1)) : nothing,
-        size(data, 2), size(data, 1))
+        obs_cov, vec(obs_mean),
+        size(data, 1))
 end
 
 ############################################################################################
