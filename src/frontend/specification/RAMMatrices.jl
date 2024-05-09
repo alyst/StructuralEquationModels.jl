@@ -29,13 +29,13 @@ observed_var_indices(ram::RAMMatrices) =
 latent_var_indices(ram::RAMMatrices) =
     [i for i in axes(ram.F, 2) if islatent_var(ram, i)]
 
+# observed variables in the order as they appear in ram.F rows
 function observed_vars(ram::RAMMatrices)
     if isnothing(ram.colnames)
         @warn "Your RAMMatrices do not contain column names. Please make sure the order of variables in your data is correct!"
         return nothing
     else
-        return [col for (i, col) in enumerate(ram.colnames)
-                if isobserved_var(ram, i)]
+        return ram.colnames[ram.F.rowval]
     end
 end
 
@@ -65,7 +65,9 @@ end
 ############################################################################################
 
 function RAMMatrices(; A::AbstractMatrix, S::AbstractMatrix,
-                       F::AbstractMatrix, M::Union{AbstractVector, Nothing} = nothing,
+                       M::Union{AbstractVector, Nothing} = nothing,
+                       F::Union{AbstractMatrix, Nothing} = nothing,
+                     observed_vars::Union{AbstractVector{Symbol}, Nothing} = nothing,
                      params::AbstractVector{Symbol},
                      colnames::Union{AbstractVector{Symbol}, Nothing} = nothing)
     ncols = size(A, 2)
@@ -74,11 +76,22 @@ function RAMMatrices(; A::AbstractMatrix, S::AbstractMatrix,
         dup_cols = nonunique(colnames)
         isempty(dup_cols) || throw(ArgumentError("Duplicate variables detected: $(join(dup_cols, ", "))"))
     end
+    if !isnothing(observed_vars)
+        dup_rows = nonunique(observed_vars)
+        isempty(dup_cols) || throw(ArgumentError("Duplicate observed variables detected: $(join(dup_rows, ", "))"))
+    end
     size(A, 1) == size(A, 2) || throw(DimensionMismatch("A must be a square matrix"))
     size(S, 1) == size(S, 2) || throw(DimensionMismatch("S must be a square matrix"))
     size(A, 2) == ncols || throw(DimensionMismatch("A should have as many rows and columns as colnames length ($ncols), $(size(A)) found"))
     size(S, 2) == ncols || throw(DimensionMismatch("S should have as many rows and columns as colnames length ($ncols), $(size(S)) found"))
-    size(F, 2) == ncols || throw(DimensionMismatch("F should have as many columns as colnames length ($ncols), $(size(F, 2)) found"))
+    if !isnothing(F)
+        if !isnothing(observed_vars)
+            size(F, 1) == length(observed_vars) || throw(DimensionMismatch("F should have as many rows as observed variables ($(length(observed_vars))), $(size(F, 1)) found"))
+        else # generated observed vars
+        end
+        size(F, 2) == ncols || throw(DimensionMismatch("F should have as many columns as colnames length ($ncols), $(size(F, 2)) found"))
+    else # generate F using colnames and observed_vars
+    end
     if !isnothing(M)
         length(M) == ncols || throw(DimensionMismatch("M should have as many elements as colnames length ($ncols), $(length(M)) found"))
     end
