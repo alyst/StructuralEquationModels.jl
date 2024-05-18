@@ -54,12 +54,16 @@ end
 function SemObservedMissing(;
         data,
         obs_colnames = nothing,
+        verbose::Bool = false,
         kwargs...)
 
+    verbose && @info "Preparing data and observed variables..."
     data, observed_vars = prepare_data(data, obs_colnames)
     n_obs = size(data, 1)
+    verbose && @info "  $(n_obs) observations of $(length(observed_vars)) variables"
 
     # detect all different missing patterns with their row indices
+    verbose && @info "Detecting patterns of variables missing in observations..."
     pattern_to_rows = Dict{BitVector, Vector{Int}}()
     for (i, datarow) in zip(axes(data, 1), eachrow(data))
         pattern = BitVector(.!ismissing.(datarow))
@@ -72,8 +76,10 @@ function SemObservedMissing(;
     patterns = [SemObservedMissingPattern(pat, rows, data)
                 for (pat, rows) in pairs(pattern_to_rows)]
     sort!(patterns, by=nmissed_vars)
+    verbose && @info "  $(length(patterns)) patterns detected"
 
-    em_cov, em_mean = em_mvn(patterns; kwargs...)
+    verbose && @info "Inferring N(μ, Σ) using EM algorithm..."
+    em_cov, em_mean = em_mvn(patterns; verbose, kwargs...)
 
     return SemObservedMissing(data, observed_vars, n_obs, patterns, em_cov, em_mean)
 end

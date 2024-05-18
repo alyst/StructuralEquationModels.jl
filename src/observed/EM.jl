@@ -29,11 +29,12 @@ function em_mvn(
     max_iter_em::Integer = 100,
     rtol_em::Number = 1e-4,
     max_nobs_em::Union{Integer, Nothing} = nothing,
+    verbose::Bool = false,
     kwargs...)
 
     n_man = SEM.n_man(patterns[1])
 
-    # precompute for full cases
+    verbose && @info "Estimating N(μ, Σ) for complete observations..."
     𝔼x_full = zeros(n_man)
     𝔼xxᵀ_full = zeros(n_man, n_man)
     nobs_full = 0
@@ -80,11 +81,12 @@ function em_mvn(
     end
 
     if !converged
-        @warn "EM Algorithm for MVN missing data did not converge in $iter iterations (ΔΣ/Σ=$(ΔΣ_rel) Δμ/μ=$(Δμ_rel)).\n" *
+        @warn "EM inference for MVN missing data did not converge in $iter iterations.\n" *
+              "Final tolerances: ΔΣ/Σ=$(ΔΣ_rel), Δμ/μ=$(Δμ_rel).\n" *
               "Likelihood for FIML is not interpretable.\n" *
               "Maybe try passing different starting values via 'start_em = ...' "
     else
-        @info "EM for MVN missing data converged in $iter iterations"
+        verbose && @info "EM for MVN missing data converged in $iter iterations: ΔΣ/Σ=$(ΔΣ_rel), Δμ/μ=$(Δμ_rel)."
     end
 
     return Σ, μ
