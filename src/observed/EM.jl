@@ -59,6 +59,7 @@ function em_mvn(
     converged = false
     Δμ_rel = NaN
     ΔΣ_rel = NaN
+    progress = Progress(max_iter_em, dt=1.0, desc="EM inference of MVN(μ, Σ)")
     while !converged && (iter < max_iter_em)
         em_step!(Σ, μ, Σ_prev, μ_prev, patterns,
                  𝔼xxᵀ_full, 𝔼x_full, nobs_full; max_nobs_em)
@@ -77,8 +78,9 @@ function em_mvn(
             μ, μ_prev = μ_prev, μ
         end
         iter += 1
-        #@info "$iter\n"
+        next!(progress, step=1, showvalues=[("ΔΣ/Σ", ΔΣ_rel), ("Δμ/μ", Δμ_rel)])
     end
+    finish!(progress)
 
     if !converged
         @warn "EM inference for MVN missing data did not converge in $iter iterations.\n" *
