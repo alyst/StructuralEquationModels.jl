@@ -48,10 +48,11 @@ include("imply/empty.jl")
 # loss
 include("loss/ML/ML.jl")
 include("loss/ML/FIML.jl")
-include("loss/regularization/lasso.jl")
-include("loss/regularization/ridge.jl")
 include("loss/WLS/WLS.jl")
 include("loss/constant/constant.jl")
+
+include("loss/regularization/lasso.jl")
+include("loss/regularization/ridge.jl")
 # optimizer
 include("diff/optim.jl")
 include("diff/Empty.jl")
@@ -93,8 +94,9 @@ export  AbstractSem,
         start_val,
             start_fabin3, start_simple, start_parameter_table,
         SemLoss,
-            SemLossFunction, SemML, SemFIML, em_mvn, SemLasso, SemRidge,
+            SemLossFunction, SemML, SemFIML, em_mvn,
             SemConstant, SemWLS, loss,
+            SemLasso, SemRidge,
         SemOptimizer,
             SemOptimizerEmpty, SemOptimizerOptim,
             optimizer, n_iterations, convergence,
