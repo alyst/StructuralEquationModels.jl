@@ -31,8 +31,8 @@ Subtype of `SemLossFunction`.
 """
 struct SemRidge <: SemLossFunction{ExactHessian}
     α::Float64
-    grad_indices::Vector{Int}   # indices of parameters to regularize
-    H_diag_indices::Vector{Int} # indices of Hessian diagonal elements to regularize
+    param_inds::Vector{Int}   # indices of parameters to regularize
+    H_diag_inds::Vector{Int} # indices of Hessian diagonal elements to regularize
 end
 
 ############################################################################
@@ -40,17 +40,13 @@ end
 ############################################################################
 
 function SemRidge(spec::SemSpecification;
-        α_ridge,
-        which_ridge,
-        kwargs...)
-
-    if eltype(which_ridge) <: Symbol
-        param_indices = Dict(param => i for (i, param) in enumerate(params(spec)))
-        which_ridge = [param_indices[param] for param in which_ridge]
-    end
+    α_ridge::Number,
+    which_ridge::AbstractVector,
+    kwargs...
+)
+    param_inds = eltype(params) <: Symbol ? param_indices(spec, which_ridge) : which_ridge
     H_linind = LinearIndices((nparams(spec), nparams(spec)))
-    which_H = [H_linind[i, i] for i in which_ridge]
-    return SemRidge(α_ridge, which_ridge, which_H)
+    return SemRidge(α_ridge, param_inds, [H_linind[i, i] for i in param_inds])
 end
 
 ############################################################################################
@@ -62,19 +58,20 @@ function evaluate!(
     ridge::SemRidge,
     imply::SemImply,
     model,
-    params)
+    params
+)
     obj = NaN
-    reg_params = view(params, ridge.grad_indices)
+    reg_params = view(params, ridge.param_inds)
     if !isnothing(objective)
         obj = ridge.α * sum(abs2, reg_params)
     end
     if !isnothing(gradient)
         fill!(gradient, 0)
-        view(gradient, ridge.grad_indices) .= (2*ridge.α) .* reg_params
+        view(gradient, ridge.param_inds) .= (2*ridge.α) .* reg_params
     end
     if !isnothing(hessian)
         fill!(hessian, 0)
-        view(hessian, ridge.H_diag_indices) .= (2*ridge.α)
+        view(hessian, ridge.H_diag_inds) .= (2*ridge.α)
     end
     return obj
 end
