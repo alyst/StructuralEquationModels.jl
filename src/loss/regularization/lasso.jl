@@ -31,55 +31,35 @@ Subtype of `SemLossFunction`.
 """
 struct SemLasso <: SemLossFunction{ExactHessian}
     α::Float64
-    grad_indices::Vector{Int}   # indices of parameters to regularize
-    H_diag_indices::Vector{Int} # indices of Hessian diagonal elements to regularize
+    param_inds::Vector{Int}   # indices of parameters to regularize
 end
-
-############################################################################
-### Constructors
-############################################################################
 
 function SemLasso(spec::SemSpecification;
-        α_lasso,
-        which_lasso,
-        kwargs...)
-
-    if eltype(which_lasso) <: Symbol
-        param_indices = Dict(param => i for (i, param) in enumerate(params(spec)))
-        which_lasso = [param_indices[param] for param in which_lasso]
-    end
-    H_linind = LinearIndices((nparams(spec), nparams(spec)))
-    which_H = [H_linind[i, i] for i in which_lasso]
-    return SemLasso(α_lasso, which_lasso, which_H)
+    α::Number,
+    params::AbstractVector,
+)
+    param_inds = eltype(params) <: Symbol ? param_indices(spec, params) : params
+    return SemLasso(α, param_inds)
 end
-
-############################################################################################
-### methods
-############################################################################################
 
 function evaluate!(
     objective, gradient, hessian,
     lasso::SemLasso,
     imply::SemImply,
     model,
-    params)
+    params
+)
     obj = NaN
-    reg_params = view(params, lasso.grad_indices)
+    reg_params = view(params, lasso.param_inds)
     if !isnothing(objective)
         obj = lasso.α * sum(abs, reg_params)
     end
     if !isnothing(gradient)
         fill!(gradient, 0)
-        view(gradient, lasso.grad_indices) .= lasso.α .* sign.(reg_params)
+        view(gradient, lasso.param_inds) .= lasso.α .* sign.(reg_params)
     end
     if !isnothing(hessian)
         fill!(hessian, 0)
     end
     return obj
 end
-
-############################################################################################
-### Recommended methods
-############################################################################################
-
-update_observed(loss::SemLasso, observed::SemObserved; kwargs...) = loss
