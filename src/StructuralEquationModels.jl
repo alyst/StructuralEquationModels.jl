@@ -53,6 +53,7 @@ include("loss/constant/constant.jl")
 
 include("loss/regularization/lasso.jl")
 include("loss/regularization/ridge.jl")
+include("loss/regularization/hinge.jl")
 # optimizer
 include("diff/optim.jl")
 include("diff/Empty.jl")
@@ -96,7 +97,7 @@ export  AbstractSem,
         SemLoss,
             SemLossFunction, SemML, SemFIML, em_mvn,
             SemConstant, SemWLS, loss,
-            SemLasso, SemRidge,
+            SemLasso, SemRidge, SemHinge,
         SemOptimizer,
             SemOptimizerEmpty, SemOptimizerOptim,
             optimizer, n_iterations, convergence,
