@@ -32,7 +32,9 @@ end
 sem_fit(optimizer::SemOptimizer, model::AbstractSem, start_params; kwargs...) =
     error("Optimizer $(optimizer) support not implemented.")
 
-function prepare_start_params(start_val, model::AbstractSem; kwargs...)
+function prepare_start_params(start_val, model::AbstractSem;
+                              start_params_jitter::Number = 0,
+                              kwargs...)
     if isnothing(start_val)
         # default function for starting parameters
         # FABIN3 for single models, simple algorithm for ensembles
@@ -50,6 +52,9 @@ function prepare_start_params(start_val, model::AbstractSem; kwargs...)
     end
     @assert start_val isa AbstractVector
     @assert length(start_val) == nparams(model)
+    if start_params_jitter != 0
+        start_val .+= randn(length(start_val)) * start_params_jitter
+    end
     return start_val
 end
 

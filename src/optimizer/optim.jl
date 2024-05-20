@@ -32,6 +32,7 @@ function sem_fit(
     if optim.algorithm isa Optim.Fminbox || optim.algorithm isa Optim.SAMIN
         lbounds = SEM.lower_bounds(lower_bounds, model, default=lower_bound, variance_default=variance_lower_bound)
         ubounds = SEM.upper_bounds(upper_bounds, model, default=upper_bound)
+        start_params = clamp.(start_params, lbounds, ubounds)
         result = Optim.optimize(
             Optim.only_fgh!((F, G, H, par) -> evaluate!(F, G, H, model, par)),
             lbounds, ubounds, start_params,
