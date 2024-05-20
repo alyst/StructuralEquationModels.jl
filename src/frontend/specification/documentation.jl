@@ -121,3 +121,13 @@ end
 ```
 """
 function label end
+
+"""
+    param_indices(spec::SemSpecification, params::AbstractVector{Symbol})
+
+Return the vector of parameter indices in the SEM specification.
+"""
+function param_indices(spec::SemSpecification, params::AbstractVector{Symbol})
+    param_map = Dict(param => i for (i, param) in enumerate(SEM.params(spec)))
+    return [param_map[param] for param in params]
+end
