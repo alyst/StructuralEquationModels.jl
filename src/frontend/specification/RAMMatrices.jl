@@ -141,21 +141,16 @@ function RAMMatrices(partable::ParameterTable;
     n_latent = length(partable.variables.latent)
     n_vars = n_observed + n_latent
 
-    # colnames (variables)
-    # and F indices (map from each observed column to its variable index)
     if length(partable.variables.sorted) != 0
         @assert length(partable.variables.sorted) == nvars(partable)
-        colnames = copy(partable.variables.sorted)
-        F_inds = findall(∈(Set(partable.variables.observed)),
-                         colnames)
+        vars_sorted = copy(partable.variables.sorted)
     else
-        colnames = [partable.variables.observed;
-                    partable.variables.latent]
-        F_inds = 1:n_observed
+        vars_sorted = [partable.variables.observed;
+                       partable.variables.latent]
     end
 
-    # indices of the colnames
-    cols_index = Dict(col => i for (i, col) in enumerate(colnames))
+    # indices of the vars (A/S/M rows or columns)
+    vars_index = Dict(col => i for (i, col) in enumerate(vars_sorted))
 
     # fill Matrices
     # known_labels = Dict{Symbol, Int64}()
@@ -173,9 +168,8 @@ function RAMMatrices(partable::ParameterTable;
     M_consts = !isnothing(M_inds) ? Vector{Pair{Int, T}}() : nothing
 
     for row in partable
-
-        row_ind = cols_index[row.to]
-        col_ind = row.from != Symbol("1") ? cols_index[row.from] : nothing
+        row_ind = vars_index[row.to]
+        col_ind = row.from != Symbol("1") ? vars_index[row.from] : nothing
 
         if !row.free
             if (row.relation == :→) && (row.from == Symbol("1"))
@@ -226,9 +220,11 @@ function RAMMatrices(partable::ParameterTable;
 
     return RAMMatrices(ParamsMatrix{T}(A_inds, A_consts, (n_vars, n_vars)),
                        ParamsMatrix{T}(S_inds, S_consts, (n_vars, n_vars)),
-                       sparse(1:n_observed, F_inds, ones(T, length(F_inds)), n_observed, n_vars),
+                       sparse(1:n_observed,
+                              [vars_index[var] for var in partable.variables.observed],
+                              ones(T, n_observed), n_observed, n_vars),
                        !isnothing(M_inds) ? ParamsVector{T}(M_inds, M_consts, (n_vars,)) : nothing,
-                       params, colnames)
+                       params, vars_sorted)
 end
 
 Base.convert(::Type{RAMMatrices}, partable::ParameterTable) = RAMMatrices(partable)
