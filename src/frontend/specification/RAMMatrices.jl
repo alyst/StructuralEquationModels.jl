@@ -24,8 +24,18 @@ isobserved_var(ram::RAMMatrices, i::Integer) =
 islatent_var(ram::RAMMatrices, i::Integer) =
     ram.F.colptr[i+1] == ram.F.colptr[i]
 
-observed_var_indices(ram::RAMMatrices) =
-    [i for i in axes(ram.F, 2) if isobserved_var(ram, i)]
+# indices of observed variables in the order as they appear in ram.F rows
+function observed_var_indices(ram::RAMMatrices)
+    obs_inds = Vector{Int}(undef, nobserved_vars(ram))
+    @inbounds for i in 1:nvars(ram)
+        colptr = ram.F.colptr[i]
+        if ram.F.colptr[i+1] > colptr # is observed
+            obs_vars[ram.F.rowval[colptr]] = i
+        end
+    end
+    return obs_inds
+end
+
 latent_var_indices(ram::RAMMatrices) =
     [i for i in axes(ram.F, 2) if islatent_var(ram, i)]
 
@@ -35,7 +45,14 @@ function observed_vars(ram::RAMMatrices)
         @warn "Your RAMMatrices do not contain column names. Please make sure the order of variables in your data is correct!"
         return nothing
     else
-        return ram.colnames[ram.F.rowval]
+        obs_vars = Vector{Symbol}(undef, nobserved_vars(ram))
+        @inbounds for (i, v) in enumerate(vars(ram))
+            colptr = ram.F.colptr[i]
+            if ram.F.colptr[i+1] > colptr # is observed
+                obs_vars[ram.F.rowval[colptr]] = v
+            end
+        end
+        return obs_vars
     end
 end
 
