@@ -55,14 +55,14 @@ BlackBoxOptim.fitness(params::AbstractVector, wrapper::SemModelBlackBoxOptimProb
 
 # sem_fit method
 function SEM.sem_fit(
-    optimizer::SemOptimizerBlackBoxOptim,
+    optim::SemOptimizerBlackBoxOptim,
     model::AbstractSem,
     start_params::AbstractVector;
     Method::Symbol = :adaptive_de_rand_1_bin_with_gradient,
     MaxSteps::Integer = 50000,
     kwargs...)
 
-    problem = SemModelBlackBoxOptimProblem(model, optimizer)
+    problem = SemModelBlackBoxOptimProblem(model, optim)
     if Method == :adaptive_de_rand_1_bin_with_gradient
         # custom adaptive differential evolution with mutation that moves along the gradient
         bbopt_factory = DefaultDiffEvoFactory(problem; kwargs...)
