@@ -39,7 +39,7 @@ true_val = [repeat([1], 8)
             repeat([0.8], 4)]
 
 start = [repeat([1], 9)
-             repeat([0.5], 4)]
+         repeat([0.5], 4)]
 
 imply_ml = RAMSymbolic(;specification = ram_matrices, start_val = start)
 

@@ -23,7 +23,7 @@ function print_type(io::IO, struct_instance)
 end
 
 ##############################################################
-# Loss Functions, Imply, 
+# Loss Functions, Imply,
 ##############################################################
 
 function Base.show(io::IO, struct_inst::SemLossFunction)

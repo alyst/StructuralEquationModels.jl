@@ -10,7 +10,7 @@
         start_covariances_obs_lat = 0.0,
         start_means = 0.0,
         kwargs...)
-    
+
 Return a vector of simple starting values.
 """
 function start_simple end
@@ -44,7 +44,6 @@ function start_simple(model::SemEnsemble; kwargs...)
     end
 
     return start_vals
-
 end
 
 function start_simple(
@@ -57,8 +56,8 @@ function start_simple(
     start_covariances_latent = 0.0,
     start_covariances_obs_lat = 0.0,
     start_means = 0.0,
-    kwargs...)
-
+    kwargs...
+)
     A, S, F_ind, M, n_par =
         ram_matrices.A,
         ram_matrices.S,
