@@ -30,7 +30,7 @@ function observed_var_indices(ram::RAMMatrices)
     @inbounds for i in 1:nvars(ram)
         colptr = ram.F.colptr[i]
         if ram.F.colptr[i+1] > colptr # is observed
-            obs_vars[ram.F.rowval[colptr]] = i
+            obs_inds[ram.F.rowval[colptr]] = i
         end
     end
     return obs_inds
