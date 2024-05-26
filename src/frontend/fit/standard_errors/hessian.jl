@@ -18,7 +18,7 @@ function se_hessian(fit::SemFit; method = :finitediff)
         evaluate!(nothing, nothing, H, fit.model, params)
     elseif method == :finitediff
         FiniteDiff.finite_difference_hessian!(H,
-            p -> evaluate!(eltype(H), nothing, nothing, fit.model, p), params)
+            p -> evaluate!(zero(eltype(H)), nothing, nothing, fit.model, p), params)
     elseif method == :optimizer
         error("Standard errors from the optimizer hessian are not implemented yet")
     elseif method == :expected
