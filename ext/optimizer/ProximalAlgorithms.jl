@@ -6,26 +6,27 @@ mutable struct ProximalResult
 end
 
 function SEM.sem_fit(
-    model::AbstractSemSingle{O, I, L, D};
+    optim::SemOptimizerProximal,
+    model::AbstractSem;
     start_val = start_val,
-    kwargs...) where {O, I, L, D <: SemOptimizerProximal}
-
+    kwargs...
+)
     if !isa(start_val, Vector)
         start_val = start_val(model; kwargs...)
     end
 
-    if isnothing(model.optimizer.operator_h)
-        solution, iterations = model.optimizer.algorithm(
+    if isnothing(optim.operator_h)
+        solution, iterations = optim.algorithm(
             x0 = start_val,
             f = model,
-            g = model.optimizer.operator_g
+            g = optim.operator_g
         )
     else
-        solution, iterations = model.optimizer.algorithm(
+        solution, iterations = optim.algorithm(
             x0=start_val,
             f=model,
-            g=model.optimizer.operator_g,
-            h=model.optimizer.operator_h
+            g=optim.operator_g,
+            h=optim.operator_h
         )
     end
 
@@ -34,11 +35,11 @@ function SEM.sem_fit(
     optimization_result = Dict(
         :minimum => minimum,
         :iterations => iterations,
-        :algorithm => model.optimizer.algorithm,
-        :operator_g => model.optimizer.operator_g)
+        :algorithm => optim.algorithm,
+        :operator_g => optim.operator_g)
 
-    isnothing(model.optimizer.operator_h) ||
-        push!(optimization_result, :operator_h => model.optimizer.operator_h)
+    isnothing(optim.operator_h) ||
+        push!(optimization_result, :operator_h => optim.operator_h)
 
     return SemFit(
         minimum,
