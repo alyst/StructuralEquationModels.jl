@@ -36,14 +36,14 @@ function sem_fit(
         result = Optim.optimize(
             Optim.only_fgh!((F, G, H, par) -> evaluate!(F, G, H, model, par)),
             lbounds, ubounds, start_params,
-            model.optimizer.algorithm,
-            model.optimizer.options)
+            optim.algorithm,
+            optim.options)
     else
         result = Optim.optimize(
                 Optim.only_fgh!((F, G, H, par) -> evaluate!(F, G, H, model, par)),
                 start_params,
-                model.optimizer.algorithm,
-                model.optimizer.options)
+                optim.algorithm,
+                optim.options)
     end
     return SemFit(result, model, start_params)
 
