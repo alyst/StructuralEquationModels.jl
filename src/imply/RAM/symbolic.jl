@@ -211,9 +211,6 @@ end
 ### Recommended methods
 ############################################################################################
 
-params(imply::RAMSymbolic) = params(imply.ram_matrices)
-nparams(imply::RAMSymbolic) = nparams(imply.ram_matrices)
-
 function update_observed(imply::RAMSymbolic, observed::SemObserved; kwargs...)
     if n_man(observed) == size(imply.Σ, 1)
         return imply
