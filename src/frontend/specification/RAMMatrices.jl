@@ -125,6 +125,15 @@ function RAMMatrices(; A::AbstractMatrix, S::AbstractMatrix,
     return RAMMatrices(A, S, F, M, copy(params), colnames)
 end
 
+# copy RAMMatrices replacing the parameters vector
+RAMMatrices(ram::RAMMatrices; params::AbstractVector{Symbol}) =
+    RAMMatrices(;
+        A = materialize(ram.A, SEM.params(ram)),
+        S = materialize(ram.S, SEM.params(ram)),
+        F = copy(ram.F),
+        M = !isnothing(ram.M) ? materialize(ram.M, SEM.params(ram)) : nothing,
+        params, colnames = ram.colnames)
+
 ############################################################################################
 ### get RAMMatrices from parameter table
 ############################################################################################
