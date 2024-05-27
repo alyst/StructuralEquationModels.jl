@@ -1,6 +1,6 @@
-fit_measures(sem_fit) = 
+fit_measures(fit) =
     fit_measures(
-        sem_fit,
+        fit,
         nparams,
         df,
         AIC,
@@ -11,16 +11,8 @@ fit_measures(sem_fit) =
         minus2ll
         )
 
-function fit_measures(sem_fit, args...)
-
-    measures = Dict{Symbol, Union{Float64, Missing}}()
-    
-    for arg in args
-        push!(measures, Symbol(arg) => arg(sem_fit))
-    end
-
-    return measures
-end
+fit_measures(fit, args...) =
+    Dict(Symbol(arg) => arg(fit) for arg in args)
 
 """
     fit_measures(sem_fit, args...)
