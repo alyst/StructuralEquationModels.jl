@@ -127,7 +127,8 @@ function Base.show(io::IO, partable::ParameterTable)
     shown_columns = filter!(col -> haskey(partable.columns, col) && length(partable.columns[col]) > 0,
                             relevant_columns)
 
-    as_matrix = mapreduce(col -> partable.columns[col], hcat, shown_columns)
+    as_matrix = mapreduce(col -> partable.columns[col], hcat, shown_columns,
+                          init = Matrix{Any}(undef, length(partable), 0))
     pretty_table(
         io,
         as_matrix,
