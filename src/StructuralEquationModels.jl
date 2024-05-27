@@ -51,6 +51,7 @@ include("observed/missing.jl")
 include("frontend/specification/Sem.jl")
 include("frontend/specification/documentation.jl")
 # imply
+include("imply/abstract.jl")
 include("imply/RAM/symbolic.jl")
 include("imply/RAM/generic.jl")
 include("imply/empty.jl")
