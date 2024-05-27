@@ -26,22 +26,7 @@ end
 # Loss Functions, Imply,
 ##############################################################
 
-function Base.show(io::IO, struct_inst::SemLossFunction)
-    print_type_name(io, struct_inst)
-    print_field_types(io, struct_inst)
-end
-
-function Base.show(io::IO, struct_inst::SemImply)
-    print_type_name(io, struct_inst)
-    print_field_types(io, struct_inst)
-end
-
-function Base.show(io::IO, struct_inst::SemObserved)
-    print_type_name(io, struct_inst)
-    print_field_types(io, struct_inst)
-end
-
-function Base.show(io::IO, struct_inst::SemOptimizer)
-    print_type_name(io, struct_inst)
-    print_field_types(io, struct_inst)
+function Base.show(io::IO, obj::Union{AbstractLoss, SemImply, SemObserved, SemOptimizer})
+    print_type_name(io, obj)
+    print_field_types(io, obj)
 end
