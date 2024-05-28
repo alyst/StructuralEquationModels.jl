@@ -49,7 +49,7 @@ function em_mvn(
         @warn "No full cases in data"
     end
 
-    # initialize
+    verbose && @info "Estimating initial μ and Σ..."
     Σ₀, μ = start_em(patterns; kwargs...)
     Σ = convert(Matrix, Σ₀)
     @assert all(isfinite, Σ) all(isfinite, μ)
