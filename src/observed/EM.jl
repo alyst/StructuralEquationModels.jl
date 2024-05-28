@@ -59,7 +59,7 @@ function em_mvn(
     converged = false
     Δμ_rel = NaN
     ΔΣ_rel = NaN
-    progress = Progress(max_iter_em, dt=1.0, desc="EM inference of MVN(μ, Σ)")
+    progress = Progress(max_iter_em, dt=1.0, showspeed=true, desc="EM inference of MVN(μ, Σ)")
     while !converged && (iter < max_iter_em)
         em_step!(Σ, μ, Σ_prev, μ_prev, patterns,
                  𝔼xxᵀ_full, 𝔼x_full, nobs_full; max_nobs_em)
