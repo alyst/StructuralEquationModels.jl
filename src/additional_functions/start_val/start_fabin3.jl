@@ -13,7 +13,6 @@ function start_fabin3(
     return start_fabin3(
         model.observed,
         model.imply,
-        model.optimizer,
         model.loss.functions...,
         kwargs...)
 end
@@ -21,7 +20,6 @@ end
 function start_fabin3(
         observed::SemObserved,
         imply,
-        optimizer,
         args...;
         kwargs...)
     return start_fabin3(

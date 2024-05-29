@@ -1,9 +1,10 @@
 """
-    sem_fit(model::AbstractSem; start_val = start_val, kwargs...)
+    sem_fit(optim::SemOptimizer, model::AbstractSem; start_val = start_val, kwargs...)
 
 Return the fitted `model`.
 
 # Arguments
+- `optim`: [`SemOptimizer`](@ref) to use for fitting
 - `model`: `AbstractSem` to fit
 - `start_val`: a vector or a dictionary of starting parameter values,
                or function to compute them (1)
@@ -20,17 +21,18 @@ sem_fit(
     start_covariances_latent = 0.5)
 ```
 """
-function sem_fit end
-
-# dispatch on optimizer
-function sem_fit(model::AbstractSem; start_val = nothing, kwargs...)
+function sem_fit(optim::SemOptimizer, model::AbstractSem;
+                 start_val = nothing, kwargs...)
     start_params = prepare_start_params(start_val, model; kwargs...)
-    sem_fit(model.optimizer, model, start_params; kwargs...)
+    sem_fit(optim, model, start_params; kwargs...)
 end
 
+sem_fit(model::AbstractSem; engine::Symbol=:Optim, start_val = nothing, kwargs...) =
+    sem_fit(SemOptimizer(; engine, kwargs...), model; start_val, kwargs...)
+
 # fallback method
-sem_fit(optimizer::SemOptimizer, model::AbstractSem, start_params; kwargs...) =
-    error("Optimizer $(optimizer) support not implemented.")
+sem_fit(optim::SemOptimizer, model::AbstractSem, start_params; kwargs...) =
+    error("Optimizer $(optim) support not implemented.")
 
 function prepare_start_params(start_val, model::AbstractSem;
                               start_params_jitter::Number = 0,

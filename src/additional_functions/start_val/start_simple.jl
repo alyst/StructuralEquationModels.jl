@@ -20,12 +20,11 @@ function start_simple(model::AbstractSemSingle; kwargs...)
     return start_simple(
         model.observed, 
         model.imply,
-        model.optimizer, 
         model.loss.functions...,
         kwargs...)
 end
 
-function start_simple(observed, imply, optimizer, args...; kwargs...)
+function start_simple(observed, imply, args...; kwargs...)
     return start_simple(imply.ram_matrices; kwargs...)
 end
 
