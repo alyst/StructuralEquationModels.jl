@@ -5,7 +5,7 @@ using LinearAlgebra, Optim,
     FiniteDiff, PrettyTables,
     Distributions, StenoGraphs, LazyArtifacts, DelimitedFiles,
     DataFrames,
-    ProgressMeter,
+    ProgressMeter, Printf,
     PackageExtensionCompat
 
 export StenoGraphs, @StenoGraph, meld
