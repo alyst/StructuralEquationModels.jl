@@ -1,5 +1,5 @@
 """
-    minus2ll(sem_fit::SemFit)
+    minus2ll(fit::SemFit)
 
 Return the negative 2* log likelihood.
 """

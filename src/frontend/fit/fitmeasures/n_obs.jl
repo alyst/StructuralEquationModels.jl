@@ -1,5 +1,5 @@
 """
-    n_obs(sem_fit::SemFit)
+    n_obs(fit::SemFit)
     n_obs(model::AbstractSemSingle)
     n_obs(model::SemEnsemble)
 
@@ -9,7 +9,7 @@ For ensemble models, return the sum over all submodels.
 """
 function n_obs end
 
-n_obs(sem_fit::SemFit) = n_obs(sem_fit.model)
+n_obs(fit::SemFit) = n_obs(fit.model)
 
 n_obs(model::AbstractSemSingle) = n_obs(model.observed)
 
