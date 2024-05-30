@@ -85,17 +85,13 @@ end
 
 RAMSymbolic{MS}(args...) where MS <: MeanStructure = RAMSymbolic{MS, map(typeof, args)...}(args...)
 
-function RAMSymbolic(;
-        specification::SemSpecification,
-        loss_types = nothing,
-        vech = false,
-        gradient = true,
-        hessian = false,
-        meanstructure = false,
-        approximate_hessian = false,
-        kwargs...)
-
-    ram_matrices = convert(RAMMatrices, specification)
+function RAMSymbolic(spec::SemSpecification;
+    vech::Bool = false,
+    gradient::Bool = true,
+    hessian::Bool = false,
+    approximate_hessian::Bool = false
+)
+    ram_matrices = convert(RAMMatrices, spec)
 
     n_par = nparams(ram_matrices)
     par = (Symbolics.@variables θ[1:n_par])[1]
@@ -105,14 +101,10 @@ function RAMSymbolic(;
     M = !isnothing(ram_matrices.M) ? materialize(Num, ram_matrices.M, par) : nothing
     F = ram_matrices.F
 
-    if !isnothing(loss_types) && any(T -> T<:SemWLS, loss_types)
-        vech = true
-    end
-
     I_A⁻¹ = neumann_series(A)
 
     # Σ
-    Σ_symbolic = eval_Σ_symbolic(S, I_A⁻¹, F; vech = vech)
+    Σ_symbolic = eval_Σ_symbolic(S, I_A⁻¹, F; vech)
     #print(Symbolics.build_function(Σ_symbolic)[2])
     Σ_function = Symbolics.build_function(Σ_symbolic, par, expression=Val{false})[2]
     Σ = zeros(size(Σ_symbolic))
@@ -150,7 +142,7 @@ function RAMSymbolic(;
     end
 
     # μ
-    if meanstructure
+    if !isnothing(ram_matrices.M)
         MS = HasMeanStructure
         μ_symbolic = eval_μ_symbolic(M, I_A⁻¹, F)
         μ_function = Symbolics.build_function(μ_symbolic, par, expression=Val{false})[2]
@@ -224,10 +216,10 @@ end
 ############################################################################################
 
 # expected covariations of observed vars
-function eval_Σ_symbolic(S, I_A⁻¹, F; vech = false)
+function eval_Σ_symbolic(S, I_A⁻¹, F; vech::Bool = false)
     Σ = F*I_A⁻¹*S*permutedims(I_A⁻¹)*permutedims(F)
     Σ = Array(Σ)
-    vech && (Σ = Σ[tril(trues(size(F, 1), size(F, 1)))])
+    vech && (Σ = SEM.vech(Σ))
     # Σ = Symbolics.simplify.(Σ)
     Threads.@threads for i in eachindex(Σ)
         Σ[i] = Symbolics.simplify(Σ[i])

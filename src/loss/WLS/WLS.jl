@@ -57,6 +57,10 @@ function SemWLS(; observed,
                  approximate_hessian = false, meanstructure = false, kwargs...)
     n_obs = n_man(observed)
     s = vech(obs_cov(observed))
+    size(s) == size(imply.Σ) ||
+        throw(DimensionMismatch("SemWLS requires implied covariance to be in vech-ed form " *
+                                "(vectorized lower triangular part of Σ matrix): $(size(s)) expected, $(size(imply.Σ)) found.\n" *
+                                "$(nameof(typeof(imply))) must be constructed with vech=true."))
 
     # compute V here
     if isnothing(wls_weight_matrix)
@@ -64,18 +68,16 @@ function SemWLS(; observed,
         S = inv(obs_cov(observed))
         S = kron(S, S)
         wls_weight_matrix = 0.5*(D'*S*D)
-    else
-        size(wls_weight_matrix) == (length(tril_ind), length(tril_ind)) ||
-            DimensionMismatch("wls_weight_matrix has to be of size $(length(tril_ind))×$(length(tril_ind))")
     end
+    size(wls_weight_matrix) == (length(s), length(s)) ||
+        DimensionMismatch("wls_weight_matrix has to be of size $(length(s))×$(length(s))")
 
-    if meanstructure
+    if MeanStructure(imply) == HasMeanStructure
         if isnothing(wls_weight_matrix_mean)
             wls_weight_matrix_mean = inv(obs_cov(observed))
-        else
-            size(wls_weight_matrix_mean) == (n_obs, n_obs) ||
-                DimensionMismatch("wls_weight_matrix_mean has to be of size $(n_obs)×$(n_obs)")
         end
+        size(wls_weight_matrix_mean) == (n_obs, n_obs) ||
+            DimensionMismatch("wls_weight_matrix_mean has to be of size $(n_obs)×$(n_obs)")
     else
         isnothing(wls_weight_matrix_mean) ||
             @warn "Ignoring wls_weight_matrix_mean since meanstructure is disabled"

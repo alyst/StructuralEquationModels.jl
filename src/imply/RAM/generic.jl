@@ -91,15 +91,12 @@ end
 
 RAM{MS}(args...) where MS <: MeanStructure = RAM{MS, map(typeof, args)...}(args...)
 
-function RAM(;
-        specification::SemSpecification,
-        #vech = false,
-        gradient_required = true,
-        meanstructure = false,
-        sparse_S::Bool = true,
-        kwargs...)
-
-    ram_matrices = convert(RAMMatrices, specification)
+function RAM(spec::SemSpecification;
+    #vech = false,
+    gradient_required = true,
+    sparse_S::Bool = true
+)
+    ram_matrices = convert(RAMMatrices, spec)
 
     # get dimensions of the model
     n_par = nparams(ram_matrices)
@@ -130,7 +127,7 @@ function RAM(;
     end
 
     # μ
-    if meanstructure
+    if !isnothing(ram_matrices.M)
         MS = HasMeanStructure
         M_pre = materialize(ram_matrices.M, rand_params)
         ∇M = gradient_required ? sparse_gradient(ram_matrices.M) : nothing
