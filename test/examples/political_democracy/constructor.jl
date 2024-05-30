@@ -8,117 +8,95 @@ using NLopt
 semoptimizer = SemOptimizer(engine = opt_engine)
 
 model_ml = Sem(
-    specification = spec,
-    data = dat,
-    optimizer = semoptimizer
+    SemML(SemObservedData(dat), RAM(spec))
 )
-@test SEM.params(model_ml.imply.ram_matrices) == SEM.params(spec)
+@test SEM.params(model_ml) == SEM.params(spec)
+@test SEM.nloss_terms(model_ml) == 1
+@test SEM.sem_terms(model_ml) isa Tuple{SEM.LossTerm{<:SemML, Nothing, Nothing}}
 
 model_ml_cov = Sem(
-    specification = spec,
-    observed = SemObservedCovariance,
-    obs_cov = cov(Matrix(dat)),
-    obs_colnames = Symbol.(names(dat)),
-    optimizer = semoptimizer,
-    n_obs = 75
+    SemML(SemObservedCovariance(cov(Matrix(dat)),
+                                obs_colnames = Symbol.(names(dat)),
+                                n_obs = 75),
+          RAM(spec))
 )
 
 model_ls_sym = Sem(
-    specification = spec,
-    data = dat,
-    imply = RAMSymbolic,
-    loss = SemWLS,
-    optimizer = semoptimizer
+    SemWLS(SemObservedData(dat), RAMSymbolic(spec, vech=true))
 )
 
 model_ml_sym = Sem(
-    specification = spec,
-    data = dat,
-    imply = RAMSymbolic,
-    optimizer = semoptimizer
+    SemML(SemObservedData(dat), RAMSymbolic(spec))
 )
 
-model_ridge = Sem(
-    specification = spec,
-    data = dat,
-    loss = (SemML, SemRidge),
-    α_ridge = .001,
-    which_ridge = 16:20,
-    optimizer = semoptimizer
+model_ml_ridge = Sem(
+    SemML(SemObservedData(dat), RAM(spec)),
+    SemRidge(spec, 16:20) => .001
 )
 
-model_constant = Sem(
-    specification = spec,
-    data = dat,
-    loss = (SemML, SemConstant),
-    constant_loss = 3.465,
-    optimizer = semoptimizer
+@test SEM.nloss_terms(model_ml_ridge) == 2
+
+model_ml_const = Sem(
+    SemML(SemObservedData(dat), RAM(spec)),
+    SemConstant(3.465)
 )
 
 model_ml_weighted = Sem(
-    specification = partable,
-    data = dat,
-    loss_weights = (n_obs(model_ml),),
-    optimizer = semoptimizer
+    SemML(SemObservedData(dat), RAM(partable)) => size(dat, 1)
 )
 
 ############################################################################################
 ### test gradients
 ############################################################################################
 
-models = [model_ml, model_ml_cov, model_ls_sym, model_ridge, model_constant, model_ml_sym, model_ml_weighted]
-model_names = ["ml", "ml_cov", "ls_sym", "ridge", "constant", "ml_sym", "ml_weighted"]
+models = Dict(
+    "ml" => model_ml,
+    "ml_cov" => model_ml_cov,
+    "ls_sym" => model_ls_sym,
+    "ridge" => model_ml_ridge,
+    "ml_const" => model_ml_const,
+    "ml_sym" => model_ml_sym,
+    "ml_weighted" => model_ml_weighted
+)
 
-for (model, name) in zip(models, model_names)
-    try
-        @testset "$(name)_gradient" begin
-            test_gradient(model, start_test; rtol = 1e-9)
-        end
-    catch
-    end
+@testset "$(id)_gradient" for (id, model) in pairs(models)
+    test_gradient(model, start_test; rtol = 1e-9)
 end
 
 ############################################################################################
 ### test solution
 ############################################################################################
 
-models = [model_ml, model_ml_cov, model_ls_sym, model_ml_sym, model_constant]
-model_names = ["ml", "ml_cov", "ls_sym", "ml_sym", "constant"]
-solution_names = Symbol.("parameter_estimates_".*["ml", "ml", "ls", "ml", "ml"])
-
-for (model, name, solution_name) in zip(models, model_names, solution_names)
-    try
-        @testset "$(name)_solution" begin
-            solution = sem_fit(model)
-            update_estimate!(partable, solution)
-            test_estimates(partable, solution_lav[solution_name]; atol = 1e-2)
-        end
-    catch
-    end
+@testset "$(id)_solution" for id in ["ml", "ml_cov", "ls_sym", "ml_sym", "ml_const"]
+    model = models[id]
+    solution = sem_fit(semoptimizer, model)
+    sol_name = Symbol("parameter_estimates_", replace(id, r"_.+$" => ""))
+    update_estimate!(partable, solution)
+    test_estimates(partable, solution_lav[sol_name]; atol = 1e-2)
 end
 
 @testset "ridge_solution" begin
-    solution_ridge = sem_fit(model_ridge)
-    solution_ml = sem_fit(model_ml)
+    solution_ridge = sem_fit(semoptimizer, model_ml_ridge)
+    solution_ml = sem_fit(semoptimizer, model_ml)
     # solution_ridge_id = sem_fit(model_ridge_id)
     @test abs(solution_ridge.minimum - solution_ml.minimum) < 1
 end
 
 # test constant objective value
 @testset "constant_objective_and_gradient" begin
-    @test (objective!(model_constant, start_test) - 3.465) ≈ objective!(model_ml, start_test)
+    @test (objective!(model_ml_const, start_test) - 3.465) ≈ objective!(model_ml, start_test)
     grad = similar(start_test); grad2 = similar(start_test)
-    gradient!(grad, model_constant, start_test)
+    gradient!(grad, model_ml_const, start_test)
     gradient!(grad2, model_ml, start_test)
     @test grad ≈ grad2
 end
 
 @testset "ml_solution_weighted" begin
-    solution_ml = sem_fit(model_ml)
-    solution_ml_weighted = sem_fit(model_ml_weighted)
-    @test isapprox(solution(solution_ml), solution(solution_ml_weighted), rtol = 1e-3)
-    @test isapprox(n_obs(model_ml)*StructuralEquationModels.minimum(solution_ml),
-        StructuralEquationModels.minimum(solution_ml_weighted), rtol = 1e-6)
+    solution_ml = sem_fit(semoptimizer, model_ml)
+    solution_ml_weighted = sem_fit(semoptimizer, model_ml_weighted)
+    @test solution(solution_ml) ≈ solution(solution_ml_weighted) rtol = 1e-3
+    @test n_obs(model_ml)*StructuralEquationModels.minimum(solution_ml) ≈
+        StructuralEquationModels.minimum(solution_ml_weighted) rtol = 1e-6
 end
 
 ############################################################################################
@@ -126,7 +104,7 @@ end
 ############################################################################################
 
 @testset "fitmeasures/se_ml" begin
-    solution_ml = sem_fit(model_ml)
+    solution_ml = sem_fit(semoptimizer, model_ml)
     test_fitmeasures(fit_measures(solution_ml), solution_lav[:fitmeasures_ml];
         atol = 1e-3)
 
@@ -136,7 +114,7 @@ end
 end
 
 @testset "fitmeasures/se_ls" begin
-    solution_ls = sem_fit(model_ls_sym)
+    solution_ls = sem_fit(semoptimizer, model_ls_sym)
     fm = fit_measures(solution_ls)
     test_fitmeasures(fm, solution_lav[:fitmeasures_ls]; atol = 1e-3,
         fitmeasure_names = fitmeasure_names_ls)
@@ -155,22 +133,11 @@ if opt_engine == :Optim
     using Optim, LineSearches
 
     model_ls = Sem(
-        specification = spec,
-        data = dat,
-        imply = RAMSymbolic,
-        loss = SemWLS,
-        hessian = true,
-        algorithm = Newton(
-            ;linesearch = BackTracking(order=3),
-            alphaguess = InitialHagerZhang())
+        SemWLS(SemObservedData(dat), RAMSymbolic(spec, vech=true, hessian=true))
     )
 
     model_ml = Sem(
-        specification = spec,
-        data = dat,
-        imply = RAMSymbolic,
-        hessian = true,
-        algorithm = Newton()
+        SemML(SemObservedData(dat), RAMSymbolic(spec, hessian=true))
     )
 
     @testset "ml_hessians" begin
@@ -182,13 +149,20 @@ if opt_engine == :Optim
     end
 
     @testset "ml_solution_hessian" begin
-        solution = sem_fit(model_ml)
+        solution = sem_fit(SemOptimizer(engine=:Optim, algorithm = Newton()),
+                           model_ml)
+
         update_estimate!(partable, solution)
         test_estimates(partable, solution_lav[:parameter_estimates_ml]; atol = 1e-3)
     end
 
     @testset "ls_solution_hessian" begin
-        solution = sem_fit(model_ls)
+        solution = sem_fit(SemOptimizer(engine=:Optim,
+            algorithm = Newton(
+                linesearch = BackTracking(order=3),
+                alphaguess = InitialHagerZhang())
+            ),
+            model_ls)
         update_estimate!(partable, solution)
         test_estimates(partable, solution_lav[:parameter_estimates_ls]; atol = 0.002, rtol = 0.0, skip=true)
     end
@@ -201,72 +175,46 @@ end
 
 # models
 model_ls = Sem(
-    specification = spec_mean,
-    data = dat,
-    imply = RAMSymbolic,
-    loss = SemWLS,
-    meanstructure = true,
-    optimizer = semoptimizer
+    SemWLS(SemObservedData(dat), RAMSymbolic(spec_mean, vech=true))
 )
 
 model_ml = Sem(
-    specification = spec_mean,
-    data = dat,
-    meanstructure = true,
-    optimizer = semoptimizer
+    SemML(SemObservedData(dat), RAM(spec_mean))
 )
 
 model_ml_cov = Sem(
-    specification = spec_mean,
-    observed = SemObservedCovariance,
-    obs_cov = cov(Matrix(dat)),
-    obs_mean = vcat(mean(Matrix(dat), dims = 1)...),
-    obs_colnames = Symbol.(names(dat)),
-    meanstructure = true,
-    optimizer = semoptimizer,
-    n_obs = 75
+    SemML(SemObservedCovariance(cov(Matrix(dat)), vec(mean(Matrix(dat), dims = 1)),
+                                obs_colnames = names(dat),
+                                n_obs = 75),
+          RAM(spec_mean))
 )
 
 model_ml_sym = Sem(
-    specification = spec_mean,
-    data = dat,
-    imply = RAMSymbolic,
-    meanstructure = true,
-    start_val = start_test_mean,
-    optimizer = semoptimizer
+    SemML(SemObservedData(dat), RAMSymbolic(spec_mean))
 )
 
 ############################################################################################
 ### test gradients
 ############################################################################################
 
-models = [model_ml, model_ml_cov, model_ls, model_ml_sym]
-model_names = ["ml", "ml_cov", "ls_sym", "ml_sym"]
+models = Dict("ml" => model_ml,
+              "ml_cov" => model_ml_cov,
+              "ls_sym" => model_ls,
+              "ml_sym" => model_ml_sym)
 
-for (model, name) in zip(models, model_names)
-    try
-        @testset "$(name)_gradient_mean" begin
-            test_gradient(model, start_test_mean; rtol = 1e-9)
-        end
-    catch
-    end
+@testset "$(id)_gradient_mean" for (id, model) in pairs(models)
+    test_gradient(model, start_test_mean; rtol = 1e-9)
 end
 
 ############################################################################################
 ### test solution
 ############################################################################################
 
-solution_names = Symbol.("parameter_estimates_".*["ml", "ml", "ls", "ml"].*"_mean")
-
-for (model, name, solution_name) in zip(models, model_names, solution_names)
-    try
-        @testset "$(name)_solution_mean" begin
-            solution = sem_fit(model)
-            update_estimate!(partable_mean, solution)
-            test_estimates(partable_mean, solution_lav[solution_name]; atol = 1e-2)
-        end
-    catch
-    end
+@testset "$(id)_solution_mean" for (id, model) in pairs(models)
+    solution = sem_fit(semoptimizer, model, start_val = start_test_mean)
+    update_estimate!(partable_mean, solution)
+    sol_name = Symbol("parameter_estimates_", replace(id, r"_.+$" => ""), "_mean")
+    test_estimates(partable_mean, solution_lav[sol_name]; atol = 1e-2)
 end
 
 ############################################################################################
@@ -301,24 +249,14 @@ end
 ############################################################################################
 
 # models
+obs_missing = SemObservedMissing(dat_missing, obs_colnames=SEM.observed_vars(spec_mean))
+
 model_ml = Sem(
-    specification = spec_mean,
-    data = dat_missing,
-    observed = SemObservedMissing,
-    loss = SemFIML,
-    optimizer = semoptimizer,
-    meanstructure = true
+    SemFIML(obs_missing, RAM(spec_mean))
 )
 
 model_ml_sym = Sem(
-    specification = spec_mean,
-    data = dat_missing,
-    observed = SemObservedMissing,
-    imply = RAMSymbolic,
-    loss = SemFIML,
-    start_val = start_test_mean,
-    optimizer = semoptimizer,
-    meanstructure = true
+    SemFIML(obs_missing, RAMSymbolic(spec_mean))
 )
 
 ############################################################################################
@@ -338,13 +276,13 @@ end
 ############################################################################################
 
 @testset "fiml_solution" begin
-    solution = sem_fit(model_ml)
+    solution = sem_fit(semoptimizer, model_ml)
     update_estimate!(partable_mean, solution)
     test_estimates(partable_mean, solution_lav[:parameter_estimates_fiml]; atol = 1e-2)
 end
 
 @testset "fiml_solution_symbolic" begin
-    solution = sem_fit(model_ml_sym)
+    solution = sem_fit(semoptimizer, model_ml_sym, start_val = start_test_mean)
     update_estimate!(partable_mean, solution)
     test_estimates(partable_mean, solution_lav[:parameter_estimates_fiml]; atol = 1e-2)
 end
@@ -354,7 +292,7 @@ end
 ############################################################################################
 
 @testset "fitmeasures/se_fiml" begin
-    solution_ml = sem_fit(model_ml)
+    solution_ml = sem_fit(semoptimizer, model_ml)
     test_fitmeasures(fit_measures(solution_ml), solution_lav[:fitmeasures_fiml];
         atol = 1e-3)
 

@@ -9,8 +9,7 @@ Weighted least squares estimation.
 # Constructor
 
     SemWLS(;
-        observed,
-        meanstructure = false,
+        observed::SemObserved, imply::SemImply;
         wls_weight_matrix = nothing,
         wls_weight_matrix_mean = nothing,
         approximate_hessian = false,
@@ -18,7 +17,6 @@ Weighted least squares estimation.
 
 # Arguments
 - `observed`: the `SemObserved` part of the model
-- `meanstructure::Bool`: does the model have a meanstructure?
 - `approximate_hessian::Bool`: should the hessian be swapped for an approximation
 - `wls_weight_matrix`: the weight matrix for weighted least squares.
     Defaults to GLS estimation (``0.5*(D^T*kron(S,S)*D)`` where D is the duplication matrix
@@ -28,7 +26,7 @@ Weighted least squares estimation.
 
 # Examples
 ```julia
-my_wls = SemWLS(observed = my_observed)
+my_wls = SemWLS(my_observed, my_imply)
 ```
 
 # Interfaces
@@ -38,23 +36,29 @@ Analytic gradients are available, and for models without a meanstructure, also a
 ## Implementation
 Subtype of `SemLossFunction`.
 """
-struct SemWLS{HE<:HessianEvaluation,Vt,St,C} <: SemLossFunction{HE}
+struct SemWLS{O, I, HE<:HessianEvaluation,Vt,St,C} <: SemLoss{O,I,HE}
+    observed::O
+    imply::I
+
     V::Vt
     σₒ::St
     V_μ::C
+
+    SemWLS(observed, imply, ::Type{HE}, args...) where {HE <: HessianEvaluation} =
+        new{typeof(observed), typeof(imply), HE, map(typeof, args)...}(observed, imply, args...)
 end
 
 ############################################################################################
 ### Constructors
 ############################################################################################
 
-SemWLS{HE}(args...) where {HE <: HessianEvaluation} =
-    SemWLS{HE, map(typeof, args)...}(args...)
+function SemWLS(observed::SemObserved, imply::SemImply;
+                wls_weight_matrix = nothing,
+                wls_weight_matrix_mean = nothing,
+                approximate_hessian = false)
+    # check integrity
+    check_observed_vars(observed, imply)
 
-function SemWLS(; observed,
-                 wls_weight_matrix = nothing,
-                 wls_weight_matrix_mean = nothing,
-                 approximate_hessian = false, meanstructure = false, kwargs...)
     n_obs = n_man(observed)
     s = vech(obs_cov(observed))
     size(s) == size(imply.Σ) ||
@@ -85,7 +89,8 @@ function SemWLS(; observed,
     end
     HE = approximate_hessian ? ApproximateHessian : ExactHessian
 
-    return SemWLS{HE}(
+    return SemWLS(
+        observed, imply, HE,
         wls_weight_matrix,
         s,
         wls_weight_matrix_mean,
@@ -97,16 +102,19 @@ end
 ############################################################################
 
 function evaluate!(objective, gradient, hessian,
-                   semwls::SemWLS, implied::SemImplySymbolic, model::AbstractSemSingle, par)
+                   wls::SemWLS, par
+)
+    implied = imply(wls)
+
     if !isnothing(hessian) && (MeanStructure(implied) === HasMeanStructure)
         error("hessian of WLS with meanstructure is not available")
     end
 
-    V = semwls.V
+    V = wls.V
     ∇σ = implied.∇Σ
 
     σ = implied.Σ
-    σₒ = semwls.σₒ
+    σₒ = wls.σₒ
     σ₋ = σₒ - σ
 
     isnothing(objective) || (objective = dot(σ₋, V, σ₋))
@@ -119,18 +127,18 @@ function evaluate!(objective, gradient, hessian,
         gradient .*= -2
     end
     isnothing(hessian) || (mul!(hessian, ∇σ'*V, ∇σ, 2, 0))
-    if !isnothing(hessian) && (HessianEvaluation(semwls) === ExactHessian)
+    if !isnothing(hessian) && (HessianEvaluation(wls) === ExactHessian)
         ∇²Σ_function! = implied.∇²Σ_function
         ∇²Σ = implied.∇²Σ
-        J = -2*(σ₋'*semwls.V)'
+        J = -2*(σ₋'*wls.V)'
         ∇²Σ_function!(∇²Σ, J, par)
         hessian .+= ∇²Σ
     end
     if MeanStructure(implied) === HasMeanStructure
         μ = implied.μ
-        μₒ = obs_mean(observed(model))
+        μₒ = obs_mean(observed(wls))
         μ₋ = μₒ - μ
-        V_μ = semwls.V_μ
+        V_μ = wls.V_μ
         if !isnothing(objective)
             objective += dot(μ₋, V_μ, μ₋)
         end

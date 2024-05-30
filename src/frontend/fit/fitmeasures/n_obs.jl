@@ -10,7 +10,3 @@ For ensemble models, return the sum over all submodels.
 function n_obs end
 
 n_obs(fit::SemFit) = n_obs(fit.model)
-
-n_obs(model::AbstractSemSingle) = n_obs(model.observed)
-
-n_obs(model::SemEnsemble) = sum(n_obs, model.sems)

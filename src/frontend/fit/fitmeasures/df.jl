@@ -10,13 +10,16 @@ df(fit::SemFit) = df(fit.model)
 
 df(model::AbstractSem) = n_dp(model) - nparams(model)
 
-function n_dp(model::AbstractSemSingle)
-    nman = n_man(model)
+# length of Σ and μ (if present)
+function n_dp(imply::SemImply)
+    nman = nobserved_vars(imply)
     ndp = 0.5(nman^2 + nman)
-    if !isnothing(model.imply.μ)
-        ndp += n_man(model)
+    if !isnothing(imply.μ)
+        ndp += nman
     end
     return ndp
 end
 
-n_dp(model::SemEnsemble) = sum(n_dp.(model.sems))
+n_dp(term::SemLoss) = n_dp(imply(term))
+
+n_dp(model::AbstractSem) = sum(n_dp∘loss, sem_terms(model))

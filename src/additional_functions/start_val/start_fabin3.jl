@@ -8,24 +8,23 @@ function start_fabin3 end
 
 # splice model and loss functions
 function start_fabin3(
-        model::AbstractSemSingle;
+        model::SemLoss;
         kwargs...)
     return start_fabin3(
         model.observed,
-        model.imply,
-        model.loss.functions...,
+        model.imply;
         kwargs...)
 end
 
 function start_fabin3(
         observed::SemObserved,
-        imply,
-        args...;
+        imply::SemImply;
         kwargs...)
     return start_fabin3(
         imply.ram_matrices,
         obs_cov(observed),
-        obs_mean(observed))
+        # ignore observed means if no meansturcture
+        !isnothing(imply.ram_matrices.M) ? obs_mean(observed) : nothing)
 end
 
 function start_fabin3(ram_matrices::RAMMatrices,
@@ -198,3 +197,6 @@ end
 function is_in_Λ(ind_vec, F_ind)
     return any(ind -> !(ind[2] ∈ F_ind) && (ind[1] ∈ F_ind), ind_vec)
 end
+
+# ensembles
+start_fabin3(model::AbstractSem; kwargs...) = start_values(start_fabin3, model; kwargs...)

@@ -3,7 +3,7 @@
 
 Return a vector of starting values taken from `parameter_table`.
 """
-start_parameter_table(model::AbstractSemSingle;
+start_parameter_table(model::SemLoss;
                       partable::ParameterTable, kwargs...) =
     start_parameter_table(partable)
 
@@ -24,3 +24,6 @@ function start_parameter_table(partable::ParameterTable)
 
     return start_vals
 end
+
+start_parameter_table(model::AbstractSem; kwargs...) =
+    start_values(start_parameter_table, model; kwargs...)

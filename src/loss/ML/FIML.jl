@@ -69,15 +69,15 @@ Full information maximum likelihood estimation. Can handle observed data with mi
 
 # Constructor
 
-    SemFIML(;observed, specification, kwargs...)
+    SemFIML(observed::SemObservedMissing, imply::SemImply)
 
 # Arguments
 - `observed::SemObservedMissing`: the observed part of the model
-- `specification`: either a `RAMMatrices` or `ParameterTable` object
+- `imply::SemImply`: [`SemImply`](@ref) instance
 
 # Examples
 ```julia
-my_fiml = SemFIML(observed = my_observed, specification = my_parameter_table)
+my_fiml = SemFIML(my_observed, my_implied)
 ```
 
 # Interfaces
@@ -87,12 +87,19 @@ Analytic gradients are available.
 ## Implementation
 Subtype of `SemLossFunction`.
 """
-struct SemFIML{T, W} <: SemLossFunction{ExactHessian}
+struct SemFIML{O, I, T, W} <: SemLoss{O, I, ExactHessian}
+    observed::O
+    imply::I
+
     patterns::Vector{SemFIMLPattern{T}}
 
     imp_inv::Matrix{T}  # implied inverse
 
     commutator::CommutationMatrix
+    #Q::SparseMatrixCSC{T}
+    #q_indices::Vector{Int}
+    #Q_nzixs2::Vector{Int}
+    #q_indices2::Vector{Int}
 
     interaction::W
 end
@@ -101,10 +108,62 @@ end
 ### Constructors
 ############################################################################################
 
-function SemFIML(; observed::SemObservedMissing, specification, kwargs...)
-    return SemFIML([SemFIMLPattern(pat) for pat in observed.patterns],
+function SemFIML(observed::SemObservedMissing, imply::SemImply)
+    # check integrity
+    check_observed_vars(observed, imply)
+#=
+    # prepare sparse matrix Q
+    n = nvars(specification)
+    comm_indices = transpose_linear_indices(n)
+    Qq_indices = Vector{Tuple{Int, Int}}()
+    q_lin = LinearIndices((n, n))
+    Q_lin = LinearIndices((n^2, n^2))
+    for ij in CartesianIndices((n, n))
+        i_n = (ij[1]-1)*n
+        j_n = (ij[2]-1)*n
+        for k in 1:n
+            push!(Qq_indices, (Q_lin[i_n + k, j_n + k], q_lin[ij]))
+            push!(Qq_indices, (Q_lin[comm_indices[i_n + k], j_n + k], q_lin[ij]))
+        end
+    end
+    sort!(Qq_indices, by=first)
+
+    Q_rowvals = Vector{Int}()
+    Q_colptr = Vector{Int}()
+    q_indices = Vector{Int}()
+    Q_nzixs2 = Vector{Int}()
+    q_indices2 = Vector{Int}()
+
+    Q_cart = CartesianIndices((n^2, n^2))
+    prev_Q_j = 0
+    prev_Q_ij = 0
+    for (Q_ij, q_kl) in Qq_indices
+        if Q_ij != prev_Q_ij
+            # assign Q element
+            push!(q_indices, q_kl)
+            Q_i, Q_j = Tuple(Q_cart[Q_ij])
+            push!(Q_rowvals, Q_i)
+            if Q_j > prev_Q_j
+                push!(Q_colptr, length(Q_rowvals))
+                prev_Q_j = Q_j
+            end
+            prev_Q_ij = Q_ij
+        else
+            # incrementing Q element (last one processed) with q
+            push!(q_indices2, q_kl)
+            push!(Q_nzixs2, length(Q_rowvals))
+        end
+    end
+    push!(Q_colptr, length(Q_rowvals) + 1)
+    @assert length(Q_colptr) == n^2 + 1
+=#
+    return SemFIML(observed, imply,
+                   [SemFIMLPattern(pat) for pat in observed.patterns],
                    zeros(n_man(observed), n_man(observed)),
-                   CommutationMatrix(nvars(specification)), nothing)
+                   CommutationMatrix(nvars(imply)),
+                   #SparseMatrixCSC(n^2, n^2, Q_colptr, Q_rowvals, ones(length(Q_rowvals))),
+                   #q_indices, Q_nzixs2, q_indices2,
+                   nothing)
 end
 
 ############################################################################################
@@ -112,21 +171,26 @@ end
 ############################################################################################
 
 function evaluate!(objective, gradient, hessian,
-                   fiml::SemFIML, implied::SemImply, model::AbstractSemSingle, params)
+                   fiml::SemFIML, params)
 
     isnothing(hessian) || error("Hessian not implemented for FIML")
 
-    if !check(fiml, model)
+    copyto!(fiml.imp_inv, fiml.imply.Σ)
+    Σ_chol = cholesky!(Symmetric(fiml.imp_inv); check = false)
+
+    if !isposdef(Σ_chol)
         isnothing(objective) || (objective = non_posdef_return(params))
         isnothing(gradient) || fill!(gradient, 1)
         return objective
     end
 
-    prepare!(fiml, model)
+    @inbounds for (pat_fiml, pat) in zip(fiml.patterns, fiml.observed.patterns)
+        prepare!(pat_fiml, pat, fiml.imply)
+    end
 
-    scale = inv(n_obs(observed(model)))
-    isnothing(objective) || (objective = scale*F_FIML(eltype(params), fiml, observed(model), model))
-    isnothing(gradient) || (∇F_FIML!(gradient, fiml, observed(model), model); gradient .*= scale)
+    scale = inv(n_obs(fiml.observed))
+    isnothing(objective) || (objective = scale*F_FIML(eltype(params), fiml))
+    isnothing(gradient) || (∇F_FIML!(gradient, fiml); gradient .*= scale)
 
     return objective
 end
@@ -142,17 +206,26 @@ update_observed(lossfun::SemFIML, observed::SemObserved; kwargs...) =
 ### additional functions
 ############################################################################################
 
-function ∇F_fiml_outer!(G, JΣ, Jμ, fiml::SemFIML, imply::SemImplySymbolic, model)
-    mul!(G, imply.∇Σ', JΣ) # should be transposed
-    mul!(G, imply.∇μ', Jμ, -1, 1)
+function ∇F_fiml_outer!(G, JΣ, Jμ, fiml::SemFIML{O, I}) where {O, I <: SemImplySymbolic}
+    mul!(G, fiml.imply.∇Σ', JΣ) # should be transposed
+    mul!(G, fiml.imply.∇μ', Jμ, -1, 1)
 end
 
-function ∇F_fiml_outer!(G, JΣ, Jμ, fiml::SemFIML, imply, model)
+function ∇F_fiml_outer!(G, JΣ, Jμ, fiml::SemFIML)
+    imply = fiml.imply
 
     P = kron(imply.F⨉I_A⁻¹, imply.F⨉I_A⁻¹)
     Iₙ = sparse(1.0I, size(imply.A)...)
     Q = kron(imply.S*imply.I_A⁻¹', Iₙ)
     Q .+= fiml.commutator * Q
+
+    #= alternative way to calculate Q
+    q = imply.S*imply.I_A⁻¹'
+    Q = fiml.Q
+    @inbounds Q.nzval .= q[fiml.q_indices]
+    @inbounds Q.nzval[fiml.Q_nzixs2] .+= q[fiml.q_indices2]
+    @assert Q ≈ Qalt
+    =#
 
     ∇Σ = P*(imply.∇S + Q*imply.∇A)
 
@@ -162,34 +235,20 @@ function ∇F_fiml_outer!(G, JΣ, Jμ, fiml::SemFIML, imply, model)
     mul!(G, ∇μ', Jμ, -1, 1)
 end
 
-function F_FIML(::Type{T}, fiml::SemFIML, observed::SemObservedMissing, model::AbstractSemSingle) where T
+function F_FIML(::Type{T}, fiml::SemFIML) where T
     F = zero(T)
-    for (pat_fiml, pat) in zip(fiml.patterns, observed.patterns)
+    for (pat_fiml, pat) in zip(fiml.patterns, fiml.observed.patterns)
         F += objective(pat_fiml, pat)
     end
     return F
 end
 
-function ∇F_FIML!(G, fiml::SemFIML, observed::SemObservedMissing, model::AbstractSemSingle)
-    Jμ = zeros(n_man(model))
-    JΣ = zeros(n_man(model)^2)
+function ∇F_FIML!(G, fiml::SemFIML)
+    Jμ = zeros(nobserved_vars(fiml))
+    JΣ = zeros(nobserved_vars(fiml)^2)
 
-    for (pat_fiml, pat) in zip(fiml.patterns, observed.patterns)
+    for (pat_fiml, pat) in zip(fiml.patterns, fiml.observed.patterns)
         gradient!(JΣ, Jμ, pat_fiml, pat)
     end
-    ∇F_fiml_outer!(G, JΣ, Jμ, fiml, imply(model), model)
-end
-
-function prepare!(fiml::SemFIML, model::AbstractSemSingle)
-    data = observed(model)::SemObservedMissing
-    @inbounds for (pat_fiml, pat) in zip(fiml.patterns, data.patterns)
-        prepare!(pat_fiml, pat, imply(model))
-    end
-    #batch_sym_inv_update!(fiml, model)
-end
-
-function check(fiml::SemFIML, model::AbstractSemSingle)
-    copyto!(fiml.imp_inv, imply(model).Σ)
-    a = cholesky!(Symmetric(fiml.imp_inv); check = false)
-    return isposdef(a)
+    ∇F_fiml_outer!(G, JΣ, Jμ, fiml)
 end

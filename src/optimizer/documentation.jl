@@ -40,8 +40,9 @@ function prepare_start_params(start_val, model::AbstractSem;
     if isnothing(start_val)
         # default function for starting parameters
         # FABIN3 for single models, simple algorithm for ensembles
-        start_val = model isa AbstractSemSingle ?
-            start_fabin3(model; kwargs...) :
+        sems = sem_terms(model)
+        start_val = length(sems) == 1 ?
+            start_fabin3(loss(sems[1]); kwargs...) :
             start_simple(model; kwargs...)
     end
     if start_val isa AbstractVector
@@ -71,7 +72,12 @@ end
 # define a vector of parameter lower bounds given a dictionary and default values
 function lower_bounds(bounds::Union{AbstractDict, Nothing}, model::AbstractSem;
                       default::Number, variance_default::Number)
-    varparams = Set(variance_params(model.imply.ram_matrices))
+    varparams = Set{Symbol}()
+    for term in loss_terms(model)
+        if issemloss(term)
+            push!.(Ref(varparams), variance_params(imply(term).ram_matrices))
+        end
+    end
     res = [begin
         def = in(p, varparams) ? variance_default : default
         isnothing(bounds) ? def : get(bounds, p, def)

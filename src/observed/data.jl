@@ -53,15 +53,18 @@ function check_arguments_SemObservedData(kwargs...)
 end
 
 
-function SemObservedData(;
-        data,
-        obs_colnames::Union{AbstractVector{Symbol}, Nothing} = nothing,
-        kwargs...)
-
-    data, observed_vars = prepare_data(data, obs_colnames)
+function SemObservedData(data;
+        specification = nothing,
+        obs_colnames::Union{AbstractVector, Nothing} = nothing,
+        kwargs...
+)
+    data, obs_vars = prepare_data(data, obs_colnames, specification)
+    length(obs_vars) == size(data, 2) ||
+        throw(DimensionMismatch("The number of observed variables ($(length(obs_vars))) " *
+                                "does not match the number of columns in the data ($(size(data, 2)))"))
     obs_mean, obs_cov = mean_and_cov(data, 1)
 
-    return SemObservedData(data, observed_vars,
+    return SemObservedData(data, obs_vars,
         obs_cov, vec(obs_mean),
         size(data, 1))
 end

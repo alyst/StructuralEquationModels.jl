@@ -185,7 +185,7 @@ end
 ### objective, gradient, hessian
 ############################################################################################
 
-function update!(targets::EvaluationTargets, imply::RAMSymbolic, model::AbstractSemSingle, par)
+function update!(targets::EvaluationTargets, imply::RAMSymbolic, par)
     imply.Σ_function(imply.Σ, par)
     if MeanStructure(imply) === HasMeanStructure
         imply.μ_function(imply.μ, par)

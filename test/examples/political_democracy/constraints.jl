@@ -21,49 +21,38 @@ function ineq_constraint(x, grad)
     0.6 - x[30]*x[31]
 end
 
-constrained_optimizer = SemOptimizer(;
-    engine = :NLopt,
-    algorithm = :AUGLAG,
-    local_algorithm = :LD_LBFGS,
-    options = Dict(
-        :xtol_rel => 1e-4
-    ),
-    # equality_constraints = (f = eq_constraint, tol = 1e-14),
-    inequality_constraints = (f = ineq_constraint, tol = 0.0),
+model_ml = Sem(
+    SemML(SemObservedData(dat), RAM(spec)),
 )
-
-model_ml_constrained = Sem(
-    specification = spec,
-    data = dat,
-    optimizer = constrained_optimizer
-)
-
-solution_constrained = sem_fit(model_ml_constrained)
 
 # NLopt option setting ---------------------------------------------------------------------
-
-model_ml_maxeval = Sem(
-    specification = spec,
-    data = dat,
-    optimizer = SemOptimizer,
-    engine = :NLopt,
-    options = Dict(:maxeval => 10)
-)
 
 ############################################################################################
 ### test solution
 ############################################################################################
 
 @testset "ml_solution_maxeval" begin
-    solution_maxeval = sem_fit(model_ml_maxeval)
+    solution_maxeval = sem_fit(
+        SemOptimizer(engine = :NLopt, options = Dict(:maxeval => 10)),
+        model_ml)
     @test solution_maxeval.optimization_result.problem.numevals == 10
     @test solution_maxeval.optimization_result.result[3] == :MAXEVAL_REACHED
 end
 
 @testset "ml_solution_constrained" begin
-    solution_constrained = sem_fit(model_ml_constrained)
+    constrained_optimizer = SemOptimizer(;
+        engine = :NLopt,
+        algorithm = :AUGLAG,
+        local_algorithm = :LD_LBFGS,
+        options = Dict(
+            :xtol_rel => 1e-4
+        ),
+        # equality_constraints = (f = eq_constraint, tol = 1e-14),
+        inequality_constraints = (f = ineq_constraint, tol = 0.0),
+    )
+    solution_constrained = sem_fit(constrained_optimizer, model_ml)
     @test solution_constrained.solution[31]*solution_constrained.solution[30] >= (0.6-1e-8)
-    @test all(abs.(solution_constrained.solution) .< 10)
+    @test all(p -> abs(p) < 10, solution_constrained.solution)
     @test solution_constrained.optimization_result.result[3] == :FTOL_REACHED skip=true
-    @test abs(solution_constrained.minimum - 21.21) < 0.01
+    @test solution_constrained.minimum ≈ 21.21 atol = 0.01
 end

@@ -33,23 +33,24 @@ function se_hessian(fit::SemFit; method = :finitediff)
 end
 
 # Addition functions -------------------------------------------------------------
-function H_scaling(model::AbstractSemSingle)
-    if length(model.loss.functions) > 1
+H_scaling(loss::SemML) = 2/(n_obs(loss)-1)
+
+function H_scaling(loss::SemWLS)
+    @warn "Standard errors for WLS are only correct if a GLS weight matrix (the default) is used."
+    return 2/(n_obs(loss)-1)
+end
+
+H_scaling(loss::SemFIML) = 2/n_obs(loss)
+
+function H_scaling(model::AbstractSem)
+    semterms = SEM.sem_terms(model)
+    if length(semterms) < nloss_terms(model)
         @warn "Hessian scaling for multiple loss functions is not implemented yet"
     end
-    return H_scaling(model.loss.functions[1], model)
+    if length(semterms) > 1
+        # ensemble
+        return 2/n_obs(model)
+    else
+        return H_scaling(loss(semterms[1]))
+    end
 end
-
-H_scaling(lossfun::SemML, model::AbstractSemSingle) =
-    2/(n_obs(model)-1)
-
-function H_scaling(lossfun::SemWLS, model::AbstractSemSingle)
-    @warn "Standard errors for WLS are only correct if a GLS weight matrix (the default) is used."
-    return 2/(n_obs(model)-1)
-end
-
-H_scaling(lossfun::SemFIML, model::AbstractSemSingle) =
-    2/n_obs(model)
-
-H_scaling(model::SemEnsemble) =
-    2/n_obs(model)

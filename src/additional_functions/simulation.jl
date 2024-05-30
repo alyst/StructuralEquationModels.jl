@@ -34,18 +34,18 @@ function update_observed end
 ############################################################################################
 
 # use the same observed type as before
-swap_observed(model::AbstractSemSingle; kwargs...) =
+swap_observed(model::SemLoss; kwargs...) =
     swap_observed(model, typeof(observed(model)).name.wrapper; kwargs...)
 
 # construct a new observed type
-swap_observed(model::AbstractSemSingle, observed_type; kwargs...) =
+swap_observed(model::SemLoss, observed_type; kwargs...) =
     swap_observed(model, observed_type(;kwargs...); kwargs...)
 
-swap_observed(model::AbstractSemSingle, new_observed::SemObserved; kwargs...) =
+swap_observed(model::SemLoss, new_observed::SemObserved; kwargs...) =
     swap_observed(model, observed(model), imply(model), loss(model), optimizer(model), new_observed; kwargs...)
 
 function swap_observed(
-        model::AbstractSemSingle,
+        model::SemLoss,
         old_observed,
         imply,
         loss,
@@ -84,7 +84,7 @@ function swap_observed(
         )
 end
 
-function update_observed(loss::SemLoss, new_observed; kwargs...)
+function update_observed(loss::Sem, new_observed; kwargs...)
     new_functions = Tuple(update_observed(lossfun, new_observed; kwargs...) for lossfun in loss.functions)
     return SemLoss(
         new_functions,

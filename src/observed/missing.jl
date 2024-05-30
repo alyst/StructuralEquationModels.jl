@@ -51,14 +51,15 @@ end
 ### Constructors
 ############################################################################################
 
-function SemObservedMissing(;
-        data,
+function SemObservedMissing(
+        data;
+        specification = nothing,
         obs_colnames = nothing,
         verbose::Bool = false,
         kwargs...)
 
     verbose && @info "Preparing data and observed variables..."
-    data, observed_vars = prepare_data(data, obs_colnames)
+    data, observed_vars = prepare_data(data, obs_colnames, specification)
     n_obs = size(data, 1)
     verbose && @info "  $(n_obs) observations of $(length(observed_vars)) variables"
 

@@ -44,7 +44,7 @@ end
 ### methods
 ############################################################################################
 
-update!(targets::EvaluationTargets, imply::ImplyEmpty, par, model) = nothing
+update!(targets::EvaluationTargets, imply::ImplyEmpty, par) = nothing
 
 ############################################################################################
 ### Recommended methods

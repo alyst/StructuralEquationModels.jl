@@ -9,32 +9,25 @@ function minus2ll end
 # Single Models
 ############################################################################################
 
-minus2ll(fit::SemFit) = minus2ll(fit, fit.model)
+minus2ll(fit::SemFit) = minus2ll(fit.model, fit)
 
-function minus2ll(fit::SemFit, model::AbstractSemSingle)
-    minimum = objective(model, fit.solution)
-    return minus2ll(minimum, model)
+function minus2ll(term::SemLoss, fit::SemFit)
+    minimum = objective(term, fit.solution)
+    return minus2ll(term, minimum)
 end
 
-minus2ll(minimum::Number, model::AbstractSemSingle) =
-    sum(lossfun -> minus2ll(lossfun, minimum, model), model.loss.functions)
-
-# SemML ------------------------------------------------------------------------------------
-function minus2ll(lossfun::SemML, minimum::Number, model::AbstractSemSingle)
-    obs = observed(model)
-    return n_obs(obs)*(minimum + log(2π)*n_man(obs))
-end
+minus2ll(term::SemML, minimum::Number) =
+    n_obs(term) * (minimum + log(2π) * n_man(term))
 
 # WLS --------------------------------------------------------------------------------------
-minus2ll(lossfun::SemWLS, minimum::Number, model::AbstractSemSingle) =
-    missing
+minus2ll(term::SemWLS, minimum::Number) = missing
 
 # compute likelihood for missing data - H0 -------------------------------------------------
 # -2ll = (∑ log(2π)*(nᵢ + mᵢ)) + F*n
-function minus2ll(lossfun::SemFIML, minimum::Number, model::AbstractSemSingle)
-    obs = observed(model)::SemObservedMissing
+function minus2ll(term::SemFIML, minimum::Number)
+    obs = observed(term)::SemObservedMissing
     F = minimum * n_obs(obs)
-    F += log(2π)*sum(pat -> n_obs(pat)*nobserved_vars(pat), obs.patterns)
+    F += log(2π) * sum(pat -> n_obs(pat)*nobserved_vars(pat), obs.patterns)
     return F
 end
 
@@ -64,8 +57,5 @@ function minus2ll(observed::SemObservedMissing)
     return F
 end
 
-############################################################################################
-# Collection
-############################################################################################
-
-minus2ll(fit::SemFit, model::SemEnsemble) = sum(Base.Fix1(minus2ll, fit), model.sems)
+minus2ll(model::AbstractSem, fit::SemFit) =
+    sum(Base.Fix2(minus2ll, fit) ∘ _unwrap ∘ loss, sem_terms(model))

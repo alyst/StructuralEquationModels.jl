@@ -47,6 +47,7 @@ include("imply/RAM/symbolic.jl")
 include("imply/RAM/generic.jl")
 include("imply/empty.jl")
 # loss
+include("loss/ML/abstract.jl")
 include("loss/ML/ML.jl")
 include("loss/ML/FIML.jl")
 include("loss/WLS/WLS.jl")
@@ -64,6 +65,7 @@ include("optimizer/documentation.jl")
 include("optimizer/optim.jl")
 # helper functions
 include("additional_functions/helper.jl")
+include("additional_functions/start_val/common.jl")
 include("additional_functions/start_val/start_fabin3.jl")
 include("additional_functions/start_val/start_partable.jl")
 include("additional_functions/start_val/start_simple.jl")
@@ -88,16 +90,15 @@ include("frontend/fit/standard_errors/bootstrap.jl")
 
 
 export  AbstractSem,
-            AbstractSemSingle, AbstractSemCollection, Sem, SemFiniteDiff,
-            SemEnsemble,
+            Sem, SemFiniteDiff,
         MeanStructure, NoMeanStructure, HasMeanStructure,
         HessianEvaluation, ExactHessian, ApproximateHessian,
         SemImply,
             RAMSymbolic, RAMSymbolicZ, RAM, ImplyEmpty, imply,
         start_val,
             start_fabin3, start_simple, start_parameter_table,
-        SemLoss,
-            SemLossFunction, SemML, SemFIML, em_mvn,
+        AbstractLoss,
+            SemLoss, SemML, SemFIML, em_mvn,
             SemConstant, SemWLS, loss,
             SemLasso, SemRidge, SemHinge, SemSquaredHinge,
         SemOptimizer,

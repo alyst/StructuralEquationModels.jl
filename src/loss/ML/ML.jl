@@ -8,26 +8,22 @@ Maximum likelihood estimation.
 
 # Constructor
 
-    SemML(;observed, meanstructure = false, approximate_hessian = false, kwargs...)
+    SemML(observed, imply; approximate_hessian = false)
 
 # Arguments
 - `observed::SemObserved`: the observed part of the model
-- `meanstructure::Bool`: does the model have a meanstructure?
+- `imply::SemImply`: [`SemImply`](@ref) instance
 - `approximate_hessian::Bool`: if hessian-based optimization is used, should the hessian be swapped for an approximation
 
 # Examples
 ```julia
-my_ml = SemML(observed = my_observed)
+my_ml = SemML(my_observed, my_implied)
 ```
-
-# Interfaces
-Analytic gradients are available, and for models without a meanstructure, also analytic hessians.
-
-# Extended help
-## Implementation
-Subtype of `SemLossFunction`.
 """
-struct SemML{HE<:HessianEvaluation,M} <: SemLossFunction{HE}
+struct SemML{O, I, HE, M} <: SemLoss{O, I, HE}
+    observed::O
+    imply::I
+
     # pre-allocated arrays to store intermediate results in evaluate!()
     obsXobs_1::M
     obsXobs_2::M
@@ -42,16 +38,20 @@ end
 ### Constructors
 ############################################################################################
 
-function SemML(; observed::SemObserved,
-                 specification::SemSpecification,
-                 approximate_hessian::Bool = false,
-                 kwargs...)
-    obsXobs = parent(obs_cov(observed))
-    nobs = nobserved_vars(specification)
-    nvar = nvars(specification)
+function SemML(observed::SemObserved,
+               imply::SemImply;
+               approximate_hessian::Bool = false)
+    # check integrity
+    check_observed_vars(observed, imply)
 
-    return SemML{approximate_hessian ? ApproximateHessian : ExactHessian,
+    obsXobs = parent(obs_cov(observed))
+    nobs = nobserved_vars(imply)
+    nvar = nvars(imply)
+
+    return SemML{typeof(observed), typeof(imply),
+                 approximate_hessian ? ApproximateHessian : ExactHessian,
                  typeof(obsXobs)}(
+        observed, imply,
         similar(obsXobs), similar(obsXobs), similar(obsXobs),
         similar(obsXobs, (nobs, nvar)),
         similar(obsXobs, (nvar, nvar)), similar(obsXobs, (nvar, nvar)),
@@ -67,20 +67,20 @@ end
 
 function evaluate!(
     objective, gradient, hessian,
-    semml::SemML,
-    implied::SemImplySymbolic,
-    model::AbstractSemSingle,
-    par)
+    ml::SemML{<:Any, <:SemImplySymbolic},
+    par
+)
+    implied = imply(ml)
 
-        if !isnothing(hessian)
+    if !isnothing(hessian)
         (MeanStructure(implied) === HasMeanStructure) &&
             throw(DomainError(H, "hessian of ML + meanstructure is not available"))
     end
 
     Σ = implied.Σ
-    Σₒ = obs_cov(observed(model))
+    Σₒ = obs_cov(observed(ml))
 
-    Σ⁻¹ = copy!(semml.obsXobs_1, Σ)
+    Σ⁻¹ = copy!(ml.obsXobs_1, Σ)
     Σ_chol = cholesky!(Symmetric(Σ⁻¹); check = false)
     if !isposdef(Σ_chol)
         #@warn "∑⁻¹ is not positive definite"
@@ -91,12 +91,12 @@ function evaluate!(
     end
     ld = logdet(Σ_chol)
     Σ⁻¹ = LinearAlgebra.inv!(Σ_chol)
-    Σ⁻¹Σₒ = mul!(semml.obsXobs_2, Σ⁻¹, Σₒ)
+    Σ⁻¹Σₒ = mul!(ml.obsXobs_2, Σ⁻¹, Σₒ)
     isnothing(objective) || (objective = ld + tr(Σ⁻¹Σₒ))
 
     if MeanStructure(implied) === HasMeanStructure
         μ = implied.μ
-        μₒ = obs_mean(observed(model))
+        μₒ = obs_mean(observed(ml))
         μ₋ = μₒ - μ
 
         isnothing(objective) || (objective += dot(μ₋, Σ⁻¹, μ₋))
@@ -104,18 +104,18 @@ function evaluate!(
             ∇Σ = implied.∇Σ
             ∇μ = implied.∇μ
             μ₋ᵀΣ⁻¹ = μ₋'*Σ⁻¹
-            mul!(gradient, ∇Σ', vec(Σ⁻¹*(I - mul!(semml.obsXobs_3, Σₒ, Σ⁻¹) - μ₋*μ₋ᵀΣ⁻¹)))
+            mul!(gradient, ∇Σ', vec(Σ⁻¹*(I - mul!(ml.obsXobs_3, Σₒ, Σ⁻¹) - μ₋*μ₋ᵀΣ⁻¹)))
             mul!(gradient, ∇μ', μ₋ᵀΣ⁻¹', -2, 1)
         end
     elseif !isnothing(gradient) || !isnothing(hessian)
         ∇Σ = implied.∇Σ
-        Σ⁻¹ΣₒΣ⁻¹ = mul!(semml.obsXobs_3, Σ⁻¹Σₒ, Σ⁻¹)
+        Σ⁻¹ΣₒΣ⁻¹ = mul!(ml.obsXobs_3, Σ⁻¹Σₒ, Σ⁻¹)
         J = vec(Σ⁻¹ - Σ⁻¹ΣₒΣ⁻¹)'
         if !isnothing(gradient)
             mul!(gradient, ∇Σ', J')
         end
         if !isnothing(hessian)
-            if HessianEvaluation(semml) === ApproximateHessian
+            if HessianEvaluation(ml) === ApproximateHessian
                 mul!(hessian, ∇Σ'*kron(Σ⁻¹, Σ⁻¹), ∇Σ, 2, 0)
             else
                 ∇²Σ_function! = implied.∇²Σ_function
@@ -137,19 +137,19 @@ end
 
 function evaluate!(
     objective, gradient, hessian,
-    semml::SemML,
-    implied::RAM,
-    model::AbstractSemSingle,
-    par)
-
+    ml::SemML,
+    par
+)
     if !isnothing(hessian)
         error("hessian of ML + non-symbolic imply type is not available")
     end
 
-    Σ = implied.Σ
-    Σₒ = obs_cov(observed(model))
+    implied = imply(ml)
 
-    Σ⁻¹ = copy!(semml.obsXobs_1, Σ)
+    Σ = implied.Σ
+    Σₒ = obs_cov(observed(ml))
+
+    Σ⁻¹ = copy!(ml.obsXobs_1, Σ)
     Σ_chol = cholesky!(Symmetric(Σ⁻¹); check = false)
     if !isposdef(Σ_chol)
         #@warn "Σ⁻¹ is not positive definite"
@@ -160,14 +160,14 @@ function evaluate!(
     end
     ld = logdet(Σ_chol)
     Σ⁻¹ = LinearAlgebra.inv!(Σ_chol)
-    Σ⁻¹Σₒ = mul!(semml.obsXobs_2, Σ⁻¹, Σₒ)
+    Σ⁻¹Σₒ = mul!(ml.obsXobs_2, Σ⁻¹, Σₒ)
 
     if !isnothing(objective)
         objective = ld + tr(Σ⁻¹Σₒ)
 
         if MeanStructure(implied) === HasMeanStructure
             μ = implied.μ
-            μₒ = obs_mean(observed(model))
+            μₒ = obs_mean(observed(ml))
             μ₋ = μₒ - μ
             objective += dot(μ₋, Σ⁻¹, μ₋)
         end
@@ -185,26 +185,26 @@ function evaluate!(
         lmul!(-1, one_Σ⁻¹Σₒ)
         one_Σ⁻¹Σₒ[diagind(one_Σ⁻¹Σₒ)] .+= 1
 
-        C = mul!(semml.varXvar_1, F⨉I_A⁻¹',
-                 mul!(semml.obsXvar_1,
-                      Symmetric(mul!(semml.obsXobs_3, one_Σ⁻¹Σₒ, Σ⁻¹)), F⨉I_A⁻¹))
+        C = mul!(ml.varXvar_1, F⨉I_A⁻¹',
+                 mul!(ml.obsXvar_1,
+                      Symmetric(mul!(ml.obsXobs_3, one_Σ⁻¹Σₒ, Σ⁻¹)), F⨉I_A⁻¹))
         mul!(gradient, ∇A',
-             vec(mul!(semml.varXvar_3,
+             vec(mul!(ml.varXvar_3,
                     Symmetric(C),
-                    mul!(semml.varXvar_2, S, I_A⁻¹'))), 2, 0)
+                    mul!(ml.varXvar_2, S, I_A⁻¹'))), 2, 0)
         mul!(gradient, ∇S', vec(C), 1, 1)
 
         if MeanStructure(implied) === HasMeanStructure
             μ = implied.μ
-            μₒ = obs_mean(observed(model))
+            μₒ = obs_mean(observed(ml))
             ∇M = implied.∇M
             M = implied.M
             μ₋ = μₒ - μ
             μ₋ᵀΣ⁻¹ = μ₋'*Σ⁻¹
             k = μ₋ᵀΣ⁻¹*F⨉I_A⁻¹
             mul!(gradient, ∇M', k', -2, 1)
-            mul!(gradient, ∇A', vec(mul!(semml.varXvar_1, k', (I_A⁻¹*(M + S*k'))')), -2, 1)
-            mul!(gradient, ∇S', vec(mul!(semml.varXvar_2, k', k)), -1, 1)
+            mul!(gradient, ∇A', vec(mul!(ml.varXvar_1, k', (I_A⁻¹*(M + S*k'))')), -2, 1)
+            mul!(gradient, ∇S', vec(mul!(ml.varXvar_2, k', k)), -1, 1)
         end
     end
 

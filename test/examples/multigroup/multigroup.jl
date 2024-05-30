@@ -70,7 +70,7 @@ specification_miss_g2 = nothing
 
 start_test = [fill(1.0, 9); fill(0.05, 3); fill(0.01, 3); fill(0.5, 6); fill(1.0, 9);
     fill(0.05, 3); fill(0.01, 3)]
-semoptimizer = SemOptimizerOptim
+semoptimizer = SemOptimizerOptim()
 
 @testset "RAMMatrices | constructor | Optim" begin include("build_models.jl") end
 
@@ -134,7 +134,7 @@ start_test = [
     fill(0.5, 6);
     fill(1.0, 9); 0.05; 0.01; 0.01; 0.05; 0.01; 0.05;
     fill(1.0, 9); 0.05; 0.01; 0.01; 0.05; 0.01; 0.05]
-semoptimizer = SemOptimizerOptim
+semoptimizer = SemOptimizerOptim()
 
 @testset "Graph → Partable → RAMMatrices | constructor | Optim" begin
     include("build_models.jl")

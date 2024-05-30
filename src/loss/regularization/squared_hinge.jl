@@ -3,48 +3,45 @@
 
 Hinge regularization.
 
-Implements *hinge* a.k.a *rectified linear unit* (*ReLU*) loss function:
+Implements *squared hinge* a.k.a *squared rectified linear unit* (*SReLU*) loss function:
 ```math
-f_{\\alpha, t}(x) = \\begin{cases} 0 & \\text{if}\\ x \\leq t \\\\
-                        \\alpha (x - t)^2 & \\text{if } x > t.
+f_{t}(x) = \\begin{cases} 0 & \\text{if}\\ x \\leq t \\\\
+                        (x - t)^2 & \\text{if } x > t.
          \\end{cases}
 ```
 """
-struct SemSquaredHinge{B} <: SemLossFunction{ExactHessian}
+struct SemSquaredHinge{B} <: AbstractLoss{ExactHessian}
     threshold::Float64
-    α::Float64
     param_inds::Vector{Int}   # indices of parameters to regularize
     H_diag_inds::Vector{Int} # indices of Hessian diagonal elements to regularize
 end
 
 """
     SemSquaredHinge(spec::SemSpecification;
-                    bound = 'l', threshold = 0.0, α, params)
+                    bound = 'l', threshold = 0.0, params)
 
 # Arguments
 - `spec`: SEM model specification
 - `threshold`: hyperparameter for penalty term
-- `α_hinge`: hyperparameter for penalty term
-- `which_hinge::AbstractVector`: Vector of parameter labels (Symbols)
+- `params::AbstractVector`: Vector of parameter IDs (Symbols)
   or indices that indicate which parameters should be regularized.
 
 # Examples
 ```julia
-my_hinge = SemHinge(spec; bound = 'u', α = 0.02, params = [:λ₁, :λ₂, :ω₂₃])
+my_hinge = SemHinge(spec; bound = 'u', params = [:λ₁, :λ₂, :ω₂₃])
 ```
 """
 function SemSquaredHinge(
-    spec::SemSpecification;
+    spec::SemSpecification,
+    params::AbstractVector;
     bound::Char = 'l',
-    threshold::Number = 0.0,
-    α::Number,
-    params::AbstractVector
+    threshold::Number = 0.0
 )
     bound ∈ ('l', 'u') || throw(ArgumentError("bound must be either 'l' or 'u', $bound given"))
 
     param_inds = eltype(params) <: Symbol ? param_indices(spec, params) : params
     H_linind = LinearIndices((nparams(spec), nparams(spec)))
-    return SemSquaredHinge{bound}(threshold, α, param_inds,
+    return SemSquaredHinge{bound}(threshold, param_inds,
                                   [H_linind[i, i] for i in param_inds])
 end
 
@@ -54,13 +51,11 @@ end
 function evaluate!(
     objective, gradient, hessian,
     sqhinge::SemSquaredHinge{B},
-    imply::SemImply,
-    model,
     params
 ) where B
     obj = NaN
     if !isnothing(objective)
-        @inbounds obj = sqhinge.α * sum(i -> sqhinge(params[i]), sqhinge.param_inds)
+        @inbounds obj = sum(i -> sqhinge(params[i]), sqhinge.param_inds)
     end
     if !isnothing(gradient)
         fill!(gradient, 0)
@@ -68,7 +63,7 @@ function evaluate!(
             par = params[i]
             if (B == 'l' && par > sqhinge.threshold) ||
                (B == 'u' && par < sqhinge.threshold)
-                gradient[i] = 2*sqhinge.α * (par - sqhinge.threshold)
+                gradient[i] = 2 * (par - sqhinge.threshold)
             end
         end
     end
@@ -78,7 +73,7 @@ function evaluate!(
             par = params[par_i]
             if (B == 'l' && par > sqhinge.threshold) ||
                (B == 'u' && par < sqhinge.threshold)
-                hessian[H_i] = 2 * sqhinge.α
+                hessian[H_i] = 2
             end
         end
     end
