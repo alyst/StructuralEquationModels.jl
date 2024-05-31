@@ -48,18 +48,17 @@ end
 
 function SemObservedCovariance(;
     specification::Union{SemSpecification, Nothing} = nothing,
-    obs_cov,
-    obs_colnames = nothing,
-    spec_colnames = nothing,
-    obs_mean = nothing,
-    meanstructure = false,
+    obs_cov::AbstractMatrix,
+    obs_colnames::Union{AbstractVector{Symbol}, Nothing} = nothing,
+    spec_colnames::Union{AbstractVector{Symbol}, Nothing} = nothing,
+    obs_mean::Union{AbstractVector, Nothing} = nothing,
+    meanstructure::Bool = false,
     n_obs::Integer,
     kwargs...,
 )
-    if !meanstructure & !isnothing(obs_mean)
+    if !meanstructure && !isnothing(obs_mean)
         throw(ArgumentError("observed means were passed, but `meanstructure = false`"))
-
-    elseif meanstructure & isnothing(obs_mean)
+    elseif meanstructure && isnothing(obs_mean)
         throw(ArgumentError("`meanstructure = true`, but no observed means were passed"))
     end
 
@@ -67,11 +66,8 @@ function SemObservedCovariance(;
         spec_colnames = observed_vars(specification)
     end
 
-    if !isnothing(spec_colnames) & isnothing(obs_colnames)
+    if !isnothing(spec_colnames) && isnothing(obs_colnames)
         throw(ArgumentError("no `obs_colnames` were specified"))
-
-    elseif !isnothing(spec_colnames) & !(eltype(obs_colnames) <: Symbol)
-        throw(ArgumentError("please specify `obs_colnames` as a vector of Symbols"))
     end
 
     if !isnothing(spec_colnames)
