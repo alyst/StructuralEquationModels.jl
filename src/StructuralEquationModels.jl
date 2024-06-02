@@ -31,6 +31,7 @@ include("additional_functions/commutation_matrix.jl")
 include("frontend/fit/SemFit.jl")
 # specification of models
 include("additional_functions/params_array.jl")
+include("frontend/common.jl")
 include("frontend/specification/checks.jl")
 include("frontend/specification/ParameterTable.jl")
 include("frontend/specification/RAMMatrices.jl")
