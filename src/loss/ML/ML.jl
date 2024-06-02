@@ -32,6 +32,8 @@ struct SemML{O, I, HE, M} <: SemLoss{O, I, HE}
     observed::O
     imply::I
 
+    obj_base::Float64 # fixed part of the objective function
+
     # pre-allocated arrays to store intermediate results in evaluate!()
     obsXobs_1::M
     obsXobs_2::M
@@ -55,11 +57,12 @@ function SemML(observed::SemObserved,
     obsXobs = parent(obs_cov(observed))
     nobs = nobserved_vars(imply)
     nvar = nvars(imply)
+    obj_base = -logdet(obs_cov(observed)) - nobs
 
     return SemML{typeof(observed), typeof(imply),
                  approximate_hessian ? ApproximateHessian : ExactHessian,
                  typeof(obsXobs)}(
-        observed, imply,
+        observed, imply, obj_base,
         similar(obsXobs), similar(obsXobs), similar(obsXobs),
         similar(obsXobs, (nobs, nvar)),
         similar(obsXobs, (nvar, nvar)), similar(obsXobs, (nvar, nvar)),
@@ -97,10 +100,10 @@ function evaluate!(
         isnothing(hessian) || copyto!(hessian, I)
         return objective
     end
-    ld = logdet(Σ_chol)
+    logdet_Σ = logdet(Σ_chol)
     Σ⁻¹ = LinearAlgebra.inv!(Σ_chol)
     Σ⁻¹Σₒ = mul!(ml.obsXobs_2, Σ⁻¹, Σₒ)
-    isnothing(objective) || (objective = ld + tr(Σ⁻¹Σₒ))
+    isnothing(objective) || (objective = ml.obj_base + logdet_Σ + tr(Σ⁻¹Σₒ))
 
     if MeanStructure(implied) === HasMeanStructure
         μ = implied.μ
@@ -166,12 +169,12 @@ function evaluate!(
         isnothing(hessian) || copyto!(hessian, I)
         return objective
     end
-    ld = logdet(Σ_chol)
+    logdet_Σ = logdet(Σ_chol)
     Σ⁻¹ = LinearAlgebra.inv!(Σ_chol)
     Σ⁻¹Σₒ = mul!(ml.obsXobs_2, Σ⁻¹, Σₒ)
 
     if !isnothing(objective)
-        objective = ld + tr(Σ⁻¹Σₒ)
+        objective = ml.obj_base + logdet_Σ + tr(Σ⁻¹Σₒ)
 
         if MeanStructure(implied) === HasMeanStructure
             μ = implied.μ
