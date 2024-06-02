@@ -42,6 +42,22 @@ function Base.show(io::IO, semfit::SemFit)
     print(io, "------------- Optimization result ------------- \n")
     print(io, "\n")
     print(io, semfit.optimization_result)
+    print(io, "------------- SEM Term Objectives -------------\n")
+    for term in loss_terms(semfit.model)
+        if !isnothing(id(term))
+            print(io, ":$(id(term)): ")
+        end
+        print(io, nameof(losstype(term)))
+        termobj = objective(loss(term), semfit.solution)
+        @printf(io, " f=%.6g", termobj)
+        if !isnothing(weight(term))
+            @printf(io, " w=%.3g w*f=%.6g",
+                    weight(term), weight(term) * termobj)
+        else
+            print(io, " w=1")
+        end
+        println(io)
+    end
 end
 
 ############################################################################################
