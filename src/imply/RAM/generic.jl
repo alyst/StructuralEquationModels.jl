@@ -178,7 +178,17 @@ function update!(targets::EvaluationTargets, imply::RAM, params)
     end
 
     if is_gradient_required(targets) || is_hessian_required(targets)
-        imply.I_A⁻¹ = LinearAlgebra.inv!(factorize(imply.I_A))
+        try
+            imply.I_A⁻¹ = LinearAlgebra.inv!(factorize(imply.I_A))
+        catch e
+            if e isa SingularException
+                @warn "Singular I-A matrix in RAM model, trying pinv()"
+                # if fails (e.g. because of bad initial values), try pseudoinverse
+                imply.I_A⁻¹ = LinearAlgebra.pinv(imply.I_A)
+            else
+                rethrow(e)
+            end
+        end
         mul!(imply.F⨉I_A⁻¹, imply.F, imply.I_A⁻¹)
     else
         copyto!(imply.F⨉I_A⁻¹, imply.F)
