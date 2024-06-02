@@ -19,6 +19,14 @@ Maximum likelihood estimation.
 ```julia
 my_ml = SemML(my_observed, my_implied)
 ```
+
+# References
+
+1. Yves Roussel, *"Evaluating the Observed Log-Likelihood Function in
+   Two-Level Structural Equation Modeling with Missing Data:
+   From Formulas to R Code"*, Psych. 2021, 3(2),
+   https://www.mdpi.com/2624-8611/3/2/17
+
 """
 struct SemML{O, I, HE, M} <: SemLoss{O, I, HE}
     observed::O
