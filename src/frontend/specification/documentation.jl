@@ -1,3 +1,13 @@
+params(spec::SemSpecification) = spec.params
+
+# observed + latent
+vars(spec::SemSpecification) =
+    error("vars(spec::$(typeof(spec))) is not implemented")
+observed_vars(spec::SemSpecification) =
+    error("observed_vars(spec::$(typeof(spec))) is not implemented")
+latent_vars(spec::SemSpecification) =
+    error("latent_vars(spec::$(typeof(spec))) is not implemented")
+
 """
 `ParameterTable`s contain the specification of a structural equation model.
 
