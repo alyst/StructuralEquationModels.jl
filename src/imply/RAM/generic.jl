@@ -85,8 +85,7 @@ mutable struct RAM{MS, A1, A2, A3, A4, A5, A6, V2, M1, M2, M3, M4, S1, S2, S3} <
     ∇S::S2
     ∇M::S3
 
-    RAM{MS}(args...) where {MS <: MeanStructure} =
-        new{MS, map(typeof, args)...}(args...)
+    RAM{MS}(args...) where {MS <: MeanStructure} = new{MS, map(typeof, args)...}(args...)
 end
 
 ############################################################################################
@@ -134,7 +133,11 @@ function RAM(;
     # μ
     if meanstructure
         MS = HasMeanStructure
-        !isnothing(ram_matrices.M) || throw(ArgumentError("You set `meanstructure = true`, but your model specification contains no mean parameters."))
+        !isnothing(ram_matrices.M) || throw(
+            ArgumentError(
+                "You set `meanstructure = true`, but your model specification contains no mean parameters.",
+            ),
+        )
         M_pre = materialize(ram_matrices.M, rand_params)
         ∇M = gradient_required ? sparse_gradient(ram_matrices.M) : nothing
         μ = zeros(n_obs)
@@ -167,12 +170,7 @@ end
 ### methods
 ############################################################################################
 
-function update!(
-    targets::EvaluationTargets,
-    imply::RAM,
-    model::AbstractSemSingle,
-    params,
-)
+function update!(targets::EvaluationTargets, imply::RAM, model::AbstractSemSingle, params)
     materialize!(imply.A, imply.ram_matrices.A, params)
     materialize!(imply.S, imply.ram_matrices.S, params)
     if !isnothing(imply.M)
