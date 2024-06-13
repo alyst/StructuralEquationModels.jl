@@ -28,7 +28,7 @@ function em_mvn(
     start_em = start_em_observed,
     max_iter_em::Integer = 100,
     rtol_em::Number = 1e-4,
-    max_nobs_em::Union{Integer, Nothing} = nothing,
+    max_nsamples_em::Union{Integer, Nothing} = nothing,
     kwargs...,
 )
     nvars = SEM.nobserved_vars(patterns[1])
@@ -36,15 +36,15 @@ function em_mvn(
     # precompute for full cases
     𝔼x_full = zeros(nvars)
     𝔼xxᵀ_full = zeros(nvars, nvars)
-    nobs_full = 0
+    nsamples_full = 0
     for pat in patterns
         if nmissed_vars(pat) == 0
             𝔼x_full .+= sum(pat.data, dims = 2)
             mul!(𝔼xxᵀ_full, pat.data, pat.data', 1, 1)
-            nobs_full += nsamples(pat)
+            nsamples_full += nsamples(pat)
         end
     end
-    if nobs_full == 0
+    if nsamples_full == 0
         @warn "No full cases in data"
     end
 
@@ -59,7 +59,17 @@ function em_mvn(
     Δμ_rel = NaN
     ΔΣ_rel = NaN
     while !converged && (iter < max_iter_em)
-        em_step!(Σ, μ, Σ_prev, μ_prev, patterns, 𝔼xxᵀ_full, 𝔼x_full, nobs_full; max_nobs_em)
+        em_step!(
+            Σ,
+            μ,
+            Σ_prev,
+            μ_prev,
+            patterns,
+            𝔼xxᵀ_full,
+            𝔼x_full,
+            nsamples_full;
+            max_nsamples_em,
+        )
 
         if iter > 0
             Δμ = norm(μ - μ_prev)
@@ -99,15 +109,15 @@ function em_step!(
     patterns::AbstractVector{<:SemObservedMissingPattern},
     𝔼xxᵀ_full::AbstractMatrix,
     𝔼x_full::AbstractVector,
-    nobs_full::Integer;
-    max_nobs_em::Union{Integer, Nothing} = nothing,
+    nsamples_full::Integer;
+    max_nsamples_em::Union{Integer, Nothing} = nothing,
 )
     # E step, update 𝔼x and 𝔼xxᵀ
     copy!(μ, 𝔼x_full)
     copy!(Σ, 𝔼xxᵀ_full)
-    nobs_used = nobs_full
-    mul!(Σ, μ₀, μ₀', -nobs_used, 1)
-    axpy!(-nobs_used, μ₀, μ)
+    nsamples_used = nsamples_full
+    mul!(Σ, μ₀, μ₀', -nsamples_used, 1)
+    axpy!(-nsamples_used, μ₀, μ)
 
     # Compute the expected sufficient statistics
     for pat in patterns
@@ -124,18 +134,21 @@ function em_step!(
         μ₀o = μ₀[o]
 
         # get pattern observations
-        nobs = !isnothing(max_nobs_em) ? min(max_nobs_em, nsamples(pat)) : nsamples(pat)
+        nsamples_pat =
+            !isnothing(max_nsamples_em) ? min(max_nsamples_em, nsamples(pat)) :
+            nsamples(pat)
         zo =
-            nobs < nsamples(pat) ?
-            pat.data[:, sort!(sample(1:nsamples(pat), nobs, replace = false))] : copy(pat.data)
+            nsamples_pat < nsamples(pat) ?
+            pat.data[:, sort!(sample(1:nsamples(pat), nsamples_pat, replace = false))] :
+            copy(pat.data)
         zo .-= μ₀o # subtract current mean from observations
 
         𝔼zo = sum(zo, dims = 2)
         𝔼zu = fill!(similar(μ₀u), 0)
 
         𝔼zzᵀuo = fill!(similar(Σ₀uo), 0)
-        𝔼zzᵀuu = nobs * Σ₀[u, u]
-        mul!(𝔼zzᵀuu, Σ₀uo, Σ₀oo_chol \ Σ₀uo', -nobs, 1)
+        𝔼zzᵀuu = nsamples_pat * Σ₀[u, u]
+        mul!(𝔼zzᵀuu, Σ₀uo, Σ₀oo_chol \ Σ₀uo', -nsamples_pat, 1)
 
         # loop through observations
         yᵢo = similar(μ₀o)
@@ -167,12 +180,12 @@ function em_step!(
         μ[o] .+= 𝔼zo
         μ[u] .+= 𝔼zu
 
-        nobs_used += nobs
+        nsamples_used += nsamples_pat
     end
 
     # M step, update em_model
-    lmul!(1 / nobs_used, Σ)
-    lmul!(1 / nobs_used, μ)
+    lmul!(1 / nsamples_used, Σ)
+    lmul!(1 / nsamples_used, μ)
     # at this point μ = μ - μ₀
     # and Σ = Σ + (μ - μ₀)×(μ - μ₀)' - μ₀×μ₀'
     mul!(Σ, μ, μ₀', -1, 1)
