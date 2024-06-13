@@ -21,7 +21,7 @@ For observed data with missing values.
 # Extended help
 ## Interfaces
 - `nsamples(::SemObservedMissing)` -> number of observed data points
-- `n_man(::SemObservedMissing)` -> number of manifest variables
+- `nobserved_vars(::SemObservedMissing)` -> number of manifest variables
 
 - `get_data(::SemObservedMissing)` -> observed data
 - `em_model(::SemObservedMissing)` -> `EmMVNModel` that contains the covariance matrix and mean vector found via expectation maximization
@@ -40,7 +40,7 @@ use this if you are sure your observed data is in the right format.
 struct SemObservedMissing{A <: AbstractMatrix, P <: SemObservedMissingPattern, T <: Real} <:
        SemObserved
     data::A
-    n_man::Int
+    nobs_vars::Int
     nsamples::Int
     patterns::Vector{P}
 
@@ -98,7 +98,7 @@ function SemObservedMissing(;
         data = Matrix(data)
     end
 
-    nsamples, n_man = size(data)
+    nsamples, nobs_vars = size(data)
 
     # detect all different missing patterns with their row indices
     pattern_to_rows = Dict{BitVector, Vector{Int}}()
@@ -117,11 +117,11 @@ function SemObservedMissing(;
 
     em_cov, em_mean = em_mvn(patterns; kwargs...)
 
-    return SemObservedMissing(data, n_man, nsamples, patterns, em_cov, em_mean)
+    return SemObservedMissing(data, nobs_vars, nsamples, patterns, em_cov, em_mean)
 end
 
 nsamples(observed::SemObservedMissing) = observed.nsamples
-n_man(observed::SemObservedMissing) = observed.n_man
+nobserved_vars(observed::SemObservedMissing) = observed.nobs_vars
 
 obs_cov(observed::SemObservedMissing) = observed.obs_cov
 obs_mean(observed::SemObservedMissing) = observed.obs_mean

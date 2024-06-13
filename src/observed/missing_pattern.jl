@@ -1,24 +1,22 @@
 # data associated with the specific pattern of missing manifested variables
 struct SemObservedMissingPattern{T, S}
-    obs_mask::BitVector     # observed vars mask
+    measured_mask::BitVector     # measured vars mask
     miss_mask::BitVector    # missing vars mask
-    nobserved::Int
-    nmissed::Int
     rows::Vector{Int}       # rows in original data
     data::Matrix{T}         # non-missing submatrix of data (vars × observations)
 
-    obs_mean::Vector{S} # means of observed vars
-    obs_cov::Symmetric{S, Matrix{S}}  # covariance of observed vars
+    measured_mean::Vector{S}     # means of measured vars
+    measured_cov::Symmetric{S, Matrix{S}}  # covariance of measured vars
 end
 
 function SemObservedMissingPattern(
-    obs_mask::BitVector,
+    measured_mask::BitVector,
     rows::AbstractVector{<:Integer},
     data::AbstractMatrix,
 )
     T = nonmissingtype(eltype(data))
 
-    pat_data = convert(Matrix{T}, view(data, rows, obs_mask))
+    pat_data = convert(Matrix{T}, view(data, rows, measured_mask))
     if size(pat_data, 1) > 1
         pat_mean, pat_cov = mean_and_cov(pat_data, 1, corrected = false)
         @assert size(pat_cov) == (size(pat_data, 2), size(pat_data, 2))
@@ -27,13 +25,11 @@ function SemObservedMissingPattern(
         pat_cov = fill(zero(T), 1, 1)
     end
 
-    miss_mask = .!obs_mask
+    miss_mask = .!measured_mask
 
     return SemObservedMissingPattern{T, eltype(pat_mean)}(
-        obs_mask,
+        measured_mask,
         miss_mask,
-        sum(obs_mask),
-        sum(miss_mask),
         rows,
         permutedims(pat_data),
         dropdims(pat_mean, dims = 1),
@@ -41,8 +37,8 @@ function SemObservedMissingPattern(
     )
 end
 
-n_man(pat::SemObservedMissingPattern) = length(pat.obs_mask)
+nobserved_vars(pat::SemObservedMissingPattern) = length(pat.measured_mask)
 nsamples(pat::SemObservedMissingPattern) = length(pat.rows)
 
-nobserved_vars(pat::SemObservedMissingPattern) = pat.nobserved
-nmissed_vars(pat::SemObservedMissingPattern) = pat.nmissed
+nmeasured_vars(pat::SemObservedMissingPattern) = length(pat.measured_mean)
+nmissed_vars(pat::SemObservedMissingPattern) = nobserved_vars(pat) - nmeasured_vars(pat)

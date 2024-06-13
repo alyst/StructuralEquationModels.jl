@@ -31,11 +31,11 @@ function em_mvn(
     max_nobs_em::Union{Integer, Nothing} = nothing,
     kwargs...,
 )
-    n_man = SEM.n_man(patterns[1])
+    nvars = SEM.nobserved_vars(patterns[1])
 
     # precompute for full cases
-    𝔼x_full = zeros(n_man)
-    𝔼xxᵀ_full = zeros(n_man, n_man)
+    𝔼x_full = zeros(nvars)
+    𝔼xxᵀ_full = zeros(nvars, nvars)
     nobs_full = 0
     for pat in patterns
         if nmissed_vars(pat) == 0
@@ -115,7 +115,7 @@ function em_step!(
 
         # observed and unobserved vars
         u = pat.miss_mask
-        o = pat.obs_mask
+        o = pat.measured_mask
 
         # compute cholesky to speed-up ldiv!()
         Σ₀oo_chol = cholesky(Symmetric(Σ₀[o, o]))
@@ -203,8 +203,8 @@ end
 function start_em_observed(patterns::AbstractVector{<:SemObservedMissingPattern}; kwargs...)
     fullpat = patterns[1]
     if (nmissed_vars(fullpat) == 0) && (nsamples(fullpat) > 1)
-        μ = copy(fullpat.obs_mean)
-        Σ = copy(parent(fullpat.obs_cov))
+        μ = copy(fullpat.measured_mean)
+        Σ = copy(parent(fullpat.measured_cov))
         if !isposdef(Σ)
             Σ = Diagonal(Σ)
         end
@@ -216,11 +216,11 @@ end
 
 # use μ = O and Σ = I
 function start_em_simple(patterns::AbstractVector{<:SemObservedMissingPattern}; kwargs...)
-    nvars = n_man(first(patterns))
+    nvars = nobserved_vars(first(patterns))
     μ = zeros(nvars)
     Σ = rand(nvars, nvars)
     Σ = Σ * Σ'
-    # Σ = Matrix(1.0I, n_man, n_man)
+    # Σ = Matrix(1.0I, nvars, nvars)
     return Σ, μ
 end
 

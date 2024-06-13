@@ -22,7 +22,7 @@ minus2ll(minimum::Number, model::AbstractSemSingle) =
 # SemML ------------------------------------------------------------------------------------
 function minus2ll(lossfun::SemML, minimum::Number, model::AbstractSemSingle)
     obs = observed(model)
-    return nsamples(obs) * (minimum + log(2π) * n_man(obs))
+    return nsamples(obs) * (minimum + log(2π) * nobserved_vars(obs))
 end
 
 # WLS --------------------------------------------------------------------------------------
@@ -33,7 +33,7 @@ minus2ll(lossfun::SemWLS, minimum::Number, model::AbstractSemSingle) = missing
 function minus2ll(lossfun::SemFIML, minimum::Number, model::AbstractSemSingle)
     obs = observed(model)::SemObservedMissing
     F = minimum * nsamples(obs)
-    F += log(2π) * sum(pat -> nsamples(pat) * nobserved_vars(pat), obs.patterns)
+    F += log(2π) * sum(pat -> nsamples(pat) * nmeasured_vars(pat), obs.patterns)
     return F
 end
 
@@ -46,17 +46,17 @@ function minus2ll(observed::SemObservedMissing)
     for pat in observed.patterns
         nᵢ = nsamples(pat)
         # implied covariance/mean
-        Σᵢ = Symmetric(Σ[pat.obs_mask, pat.obs_mask])
+        Σᵢ = Symmetric(Σ[pat.measured_mask, pat.measured_mask])
 
         ld = logdet(Σᵢ)
         Σᵢ⁻¹ = LinearAlgebra.inv!(cholesky!(Σᵢ))
-        μ_diffᵢ = pat.obs_mean - μ[pat.obs_mask]
+        μ_diffᵢ = pat.measured_mean - μ[pat.measured_mask]
 
         F_pat = ld + dot(μ_diffᵢ, Σᵢ⁻¹, μ_diffᵢ)
         if nsamples(pat) > 1
-            F_pat += dot(pat.obs_cov, Σᵢ⁻¹)
+            F_pat += dot(pat.measured_cov, Σᵢ⁻¹)
         end
-        F += (F_pat + log(2π) * nobserved_vars(pat)) * nsamples(pat)
+        F += (F_pat + log(2π) * nmeasured_vars(pat)) * nsamples(pat)
     end
 
     #F *= nsamples(observed)

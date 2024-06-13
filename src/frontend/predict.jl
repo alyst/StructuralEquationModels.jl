@@ -84,9 +84,9 @@ function predict_latent_scores(
     params::AbstractVector,
     data::SemObserved,
 )
-    n_man(data) == nobserved_vars(model) || throw(
+    nobserved_vars(data) == nobserved_vars(model) || throw(
         DimensionMismatch(
-            "Number of variables in data ($(n_man(data))) does not match the number of observed variables in the model ($(nobserved_vars(model)))",
+            "Number of variables in data ($(nobserved_vars(data))) does not match the number of observed variables in the model ($(nobserved_vars(model)))",
         ),
     )
     length(params) == nparams(model) || throw(

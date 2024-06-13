@@ -12,25 +12,25 @@ end
 
 # allocate arrays for pattern FIML
 function SemFIMLPattern(pat::SemObservedMissingPattern)
-    nobserved = nobserved_vars(pat)
+    nmes = nmeasured_vars(pat)
     nmissed = nmissed_vars(pat)
 
     # linear indicies of co-observed variable pairs for each pattern
-    Σ_linind = LinearIndices((n_man(pat), n_man(pat)))
+    Σ_linind = LinearIndices((nobserved_vars(pat), nobserved_vars(pat)))
     ∇ind = vec([
-        Σ_linind[CartesianIndex(x, y)] for x in findall(pat.obs_mask),
-        y in findall(pat.obs_mask)
+        Σ_linind[CartesianIndex(x, y)] for x in findall(pat.measured_mask),
+        y in findall(pat.measured_mask)
     ])
 
-    return SemFIMLPattern(∇ind, zeros(nobserved, nobserved), Ref(NaN), zeros(nobserved))
+    return SemFIMLPattern(∇ind, zeros(nmes, nmes), Ref(NaN), zeros(nmes))
 end
 
 function prepare!(fiml::SemFIMLPattern, pat::SemObservedMissingPattern, implied::SemImply)
     Σ = implied.Σ
     μ = implied.μ
     @inbounds @. @views begin
-        fiml.Σ⁻¹ = Σ[pat.obs_mask, pat.obs_mask]
-        fiml.μ_diff = pat.obs_mean - μ[pat.obs_mask]
+        fiml.Σ⁻¹ = Σ[pat.measured_mask, pat.measured_mask]
+        fiml.μ_diff = pat.measured_mean - μ[pat.measured_mask]
     end
     Σ_chol = cholesky!(Symmetric(fiml.Σ⁻¹))
     fiml.logdet[] = logdet(Σ_chol)
@@ -42,7 +42,7 @@ end
 function objective(fiml::SemFIMLPattern{T}, pat::SemObservedMissingPattern) where {T}
     F = fiml.logdet[] + dot(fiml.μ_diff, fiml.Σ⁻¹, fiml.μ_diff)
     if nsamples(pat) > 1
-        F += dot(pat.obs_cov, fiml.Σ⁻¹)
+        F += dot(pat.measured_cov, fiml.Σ⁻¹)
         F *= nsamples(pat)
     end
     return F
@@ -52,7 +52,7 @@ function gradient!(JΣ, Jμ, fiml::SemFIMLPattern, pat::SemObservedMissingPatter
     Σ⁻¹ = Symmetric(fiml.Σ⁻¹)
     μ_diff⨉Σ⁻¹ = fiml.μ_diff' * Σ⁻¹
     if nsamples(pat) > 1
-        JΣ_pat = Σ⁻¹ * (I - pat.obs_cov * Σ⁻¹ - fiml.μ_diff * μ_diff⨉Σ⁻¹)
+        JΣ_pat = Σ⁻¹ * (I - pat.measured_cov * Σ⁻¹ - fiml.μ_diff * μ_diff⨉Σ⁻¹)
         JΣ_pat .*= nsamples(pat)
     else
         JΣ_pat = Σ⁻¹ * (I - fiml.μ_diff * μ_diff⨉Σ⁻¹)
@@ -60,7 +60,7 @@ function gradient!(JΣ, Jμ, fiml::SemFIMLPattern, pat::SemObservedMissingPatter
     @inbounds vec(JΣ)[fiml.∇ind] .+= vec(JΣ_pat)
 
     lmul!(2 * nsamples(pat), μ_diff⨉Σ⁻¹)
-    @inbounds Jμ[pat.obs_mask] .+= μ_diff⨉Σ⁻¹'
+    @inbounds Jμ[pat.measured_mask] .+= μ_diff⨉Σ⁻¹'
     return nothing
 end
 
@@ -104,7 +104,7 @@ end
 function SemFIML(; observed::SemObservedMissing, specification, kwargs...)
     return SemFIML(
         [SemFIMLPattern(pat) for pat in observed.patterns],
-        zeros(n_man(observed), n_man(observed)),
+        zeros(nobserved_vars(observed), nobserved_vars(observed)),
         CommutationMatrix(nvars(specification)),
         nothing,
     )
@@ -186,8 +186,8 @@ function F_FIML(
 end
 
 function ∇F_FIML!(G, fiml::SemFIML, observed::SemObservedMissing, model::AbstractSemSingle)
-    Jμ = zeros(n_man(model))
-    JΣ = zeros(n_man(model)^2)
+    Jμ = zeros(nobserved_vars(model))
+    JΣ = zeros(nobserved_vars(model)^2)
 
     for (pat_fiml, pat) in zip(fiml.patterns, observed.patterns)
         gradient!(JΣ, Jμ, pat_fiml, pat)

@@ -203,7 +203,7 @@ end
 ############################################################################################
 
 function update_observed(imply::RAM, observed::SemObserved; kwargs...)
-    if n_man(observed) == size(imply.Σ, 1)
+    if nobserved_vars(observed) == size(imply.Σ, 1)
         return imply
     else
         return RAM(; observed = observed, kwargs...)

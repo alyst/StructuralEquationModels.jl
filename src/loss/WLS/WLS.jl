@@ -59,7 +59,7 @@ function SemWLS(;
     meanstructure = false,
     kwargs...,
 )
-    n_obs = n_man(observed)
+    n_obs = nobserved_vars(observed)
     tril_ind = filter(x -> (x[1] >= x[2]), CartesianIndices(obs_cov(observed)))
     s = obs_cov(observed)[tril_ind]
 
