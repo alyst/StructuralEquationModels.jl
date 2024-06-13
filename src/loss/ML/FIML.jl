@@ -41,9 +41,9 @@ end
 
 function objective(fiml::SemFIMLPattern{T}, pat::SemObservedMissingPattern) where {T}
     F = fiml.logdet[] + dot(fiml.μ_diff, fiml.Σ⁻¹, fiml.μ_diff)
-    if n_obs(pat) > 1
+    if nsamples(pat) > 1
         F += dot(pat.obs_cov, fiml.Σ⁻¹)
-        F *= n_obs(pat)
+        F *= nsamples(pat)
     end
     return F
 end
@@ -51,15 +51,15 @@ end
 function gradient!(JΣ, Jμ, fiml::SemFIMLPattern, pat::SemObservedMissingPattern)
     Σ⁻¹ = Symmetric(fiml.Σ⁻¹)
     μ_diff⨉Σ⁻¹ = fiml.μ_diff' * Σ⁻¹
-    if n_obs(pat) > 1
+    if nsamples(pat) > 1
         JΣ_pat = Σ⁻¹ * (I - pat.obs_cov * Σ⁻¹ - fiml.μ_diff * μ_diff⨉Σ⁻¹)
-        JΣ_pat .*= n_obs(pat)
+        JΣ_pat .*= nsamples(pat)
     else
         JΣ_pat = Σ⁻¹ * (I - fiml.μ_diff * μ_diff⨉Σ⁻¹)
     end
     @inbounds vec(JΣ)[fiml.∇ind] .+= vec(JΣ_pat)
 
-    lmul!(2 * n_obs(pat), μ_diff⨉Σ⁻¹)
+    lmul!(2 * nsamples(pat), μ_diff⨉Σ⁻¹)
     @inbounds Jμ[pat.obs_mask] .+= μ_diff⨉Σ⁻¹'
     return nothing
 end
@@ -133,7 +133,7 @@ function evaluate!(
 
     prepare!(fiml, model)
 
-    scale = inv(n_obs(observed(model)))
+    scale = inv(nsamples(observed(model)))
     isnothing(objective) ||
         (objective = scale * F_FIML(eltype(params), fiml, observed(model), model))
     isnothing(gradient) ||

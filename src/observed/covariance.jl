@@ -10,7 +10,7 @@ function SemObservedCovariance(;
     spec_colnames::Union{AbstractVector{Symbol}, Nothing} = nothing,
     obs_mean::Union{AbstractVector, Nothing} = nothing,
     meanstructure::Bool = false,
-    n_obs::Integer,
+    nsamples::Integer,
     kwargs...,
 )
     if !meanstructure && !isnothing(obs_mean)
@@ -33,5 +33,5 @@ function SemObservedCovariance(;
         isnothing(obs_mean) || (obs_mean = obs_mean[obs2spec_perm])
     end
 
-    return SemObservedData(nothing, Symmetric(obs_cov), obs_mean, size(obs_cov, 1), n_obs)
+    return SemObservedData(nothing, Symmetric(obs_cov), obs_mean, size(obs_cov, 1), nsamples)
 end

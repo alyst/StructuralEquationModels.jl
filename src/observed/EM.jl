@@ -41,7 +41,7 @@ function em_mvn(
         if nmissed_vars(pat) == 0
             𝔼x_full .+= sum(pat.data, dims = 2)
             mul!(𝔼xxᵀ_full, pat.data, pat.data', 1, 1)
-            nobs_full += n_obs(pat)
+            nobs_full += nsamples(pat)
         end
     end
     if nobs_full == 0
@@ -124,10 +124,10 @@ function em_step!(
         μ₀o = μ₀[o]
 
         # get pattern observations
-        nobs = !isnothing(max_nobs_em) ? min(max_nobs_em, n_obs(pat)) : n_obs(pat)
+        nobs = !isnothing(max_nobs_em) ? min(max_nobs_em, nsamples(pat)) : nsamples(pat)
         zo =
-            nobs < n_obs(pat) ?
-            pat.data[:, sort!(sample(1:n_obs(pat), nobs, replace = false))] : copy(pat.data)
+            nobs < nsamples(pat) ?
+            pat.data[:, sort!(sample(1:nsamples(pat), nobs, replace = false))] : copy(pat.data)
         zo .-= μ₀o # subtract current mean from observations
 
         𝔼zo = sum(zo, dims = 2)
@@ -202,7 +202,7 @@ end
 # use μ and Σ of full cases
 function start_em_observed(patterns::AbstractVector{<:SemObservedMissingPattern}; kwargs...)
     fullpat = patterns[1]
-    if (nmissed_vars(fullpat) == 0) && (n_obs(fullpat) > 1)
+    if (nmissed_vars(fullpat) == 0) && (nsamples(fullpat) > 1)
         μ = copy(fullpat.obs_mean)
         Σ = copy(parent(fullpat.obs_cov))
         if !isposdef(Σ)

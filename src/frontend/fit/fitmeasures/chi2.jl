@@ -14,11 +14,11 @@ Return the χ² value.
 
 # RAM + SemML
 χ²(lossfun::SemML, fit::SemFit, model::AbstractSemSingle) =
-    (n_obs(fit) - 1) *
+    (nsamples(fit) - 1) *
     (fit.minimum - logdet(obs_cov(observed(model))) - n_man(observed(model)))
 
 # bollen, p. 115, only correct for GLS weight matrix
-χ²(lossfun::SemWLS, fit::SemFit, model::AbstractSemSingle) = (n_obs(fit) - 1) * fit.minimum
+χ²(lossfun::SemWLS, fit::SemFit, model::AbstractSemSingle) = (nsamples(fit) - 1) * fit.minimum
 
 # FIML
 function χ²(lossfun::SemFIML, fit::SemFit, model::AbstractSemSingle)
@@ -51,7 +51,7 @@ function χ²(fit::SemFit, models::SemEnsemble)
 end
 
 function χ²(lossfun::SemWLS, fit::SemFit, models::SemEnsemble)
-    return (sum(n_obs, models.sems) - 1) * fit.minimum
+    return (nsamples(models) - 1) * fit.minimum
 end
 
 function χ²(lossfun::SemML, fit::SemFit, models::SemEnsemble)
@@ -59,7 +59,7 @@ function χ²(lossfun::SemML, fit::SemFit, models::SemEnsemble)
         data = observed(model)
         w * (logdet(obs_cov(data)) + n_man(data))
     end
-    return (sum(n_obs, models.sems) - 1) * (fit.minimum - G)
+    return (nsamples(models) - 1) * (fit.minimum - G)
 end
 
 function χ²(lossfun::SemFIML, fit::SemFit, models::SemEnsemble)

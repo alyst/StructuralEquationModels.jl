@@ -20,7 +20,7 @@ For observed data with missing values.
 
 # Extended help
 ## Interfaces
-- `n_obs(::SemObservedMissing)` -> number of observed data points
+- `nsamples(::SemObservedMissing)` -> number of observed data points
 - `n_man(::SemObservedMissing)` -> number of manifest variables
 
 - `get_data(::SemObservedMissing)` -> observed data
@@ -41,7 +41,7 @@ struct SemObservedMissing{A <: AbstractMatrix, P <: SemObservedMissingPattern, T
        SemObserved
     data::A
     n_man::Int
-    n_obs::Int
+    nsamples::Int
     patterns::Vector{P}
 
     obs_cov::Matrix{T}
@@ -98,7 +98,7 @@ function SemObservedMissing(;
         data = Matrix(data)
     end
 
-    n_obs, n_man = size(data)
+    nsamples, n_man = size(data)
 
     # detect all different missing patterns with their row indices
     pattern_to_rows = Dict{BitVector, Vector{Int}}()
@@ -117,10 +117,10 @@ function SemObservedMissing(;
 
     em_cov, em_mean = em_mvn(patterns; kwargs...)
 
-    return SemObservedMissing(data, n_man, n_obs, patterns, em_cov, em_mean)
+    return SemObservedMissing(data, n_man, nsamples, patterns, em_cov, em_mean)
 end
 
-n_obs(observed::SemObservedMissing) = observed.n_obs
+nsamples(observed::SemObservedMissing) = observed.nsamples
 n_man(observed::SemObservedMissing) = observed.n_man
 
 obs_cov(observed::SemObservedMissing) = observed.obs_cov

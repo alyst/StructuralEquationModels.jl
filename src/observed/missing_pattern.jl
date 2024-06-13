@@ -42,7 +42,7 @@ function SemObservedMissingPattern(
 end
 
 n_man(pat::SemObservedMissingPattern) = length(pat.obs_mask)
-n_obs(pat::SemObservedMissingPattern) = length(pat.rows)
+nsamples(pat::SemObservedMissingPattern) = length(pat.rows)
 
 nobserved_vars(pat::SemObservedMissingPattern) = pat.nobserved
 nmissed_vars(pat::SemObservedMissingPattern) = pat.nmissed
