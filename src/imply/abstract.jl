@@ -12,7 +12,7 @@ nparams(imply::SemImply) = nparams(imply.ram_matrices)
 
 function check_acyclic(A::AbstractMatrix)
     # check if the model is acyclic
-    acyclic = isone(det(I-A))
+    acyclic = isone(det(I - A))
 
     # check if A is lower or upper triangular
     if istril(A)
@@ -23,7 +23,8 @@ function check_acyclic(A::AbstractMatrix)
         return UpperTriangular(A)
     else
         if acyclic
-            @info "Your model is acyclic, specifying the A Matrix as either Upper or Lower Triangular can have great performance benefits.\n" maxlog=1
+            @info "Your model is acyclic, specifying the A Matrix as either Upper or Lower Triangular can have great performance benefits.\n" maxlog =
+                1
         end
         return A
     end
