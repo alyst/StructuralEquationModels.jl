@@ -89,7 +89,11 @@ include("frontend/fit/standard_errors/bootstrap.jl")
 
 
 
-export  AbstractSem,
+export  ParamsArray, ParamsMatrix, ParamsVector,
+            param_occurences, param_occurences_range,
+            materialize, materialize!,
+            sparse_gradient, sparse_gradient!, sparse_materialize,
+        AbstractSem,
             Sem, SemFiniteDiff,
         MeanStructure, NoMeanStructure, HasMeanStructure,
         HessianEvaluation, ExactHessian, ApproximateHessian,
