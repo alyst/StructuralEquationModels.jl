@@ -23,7 +23,7 @@ function check_acyclic(A::AbstractMatrix)
         return UpperTriangular(A)
     else
         if acyclic
-            @info "Your model is acyclic, specifying the A Matrix as either Upper or Lower Triangular can have great performance benefits.\n" maxlog =
+            @warn "Your model is acyclic, specifying the A Matrix as either Upper or Lower Triangular can have great performance benefits.\n" maxlog =
                 1
         end
         return A
