@@ -69,7 +69,7 @@ end
 function predict_latent_scores(method::SemScoresPredictMethod, model::SemLoss, params::AbstractVector,
                                data::SemObserved = observed(model))
     n_man(data) == nobserved_vars(model) ||
-        throw(DimensionMismatch("Number of variables in data ($(n_obs(data))) does not match the number of observed variables in the model ($(nobserved_vars(model)))"))
+        throw(DimensionMismatch("Number of variables in data ($(n_man(data))) does not match the number of observed variables in the model ($(nobserved_vars(model)))"))
     length(params) == nparams(model) ||
         throw(DimensionMismatch("The length of parameters vector ($(length(params))) does not match the number of parameters in the model ($(nparams(model)))"))
 
