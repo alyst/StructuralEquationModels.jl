@@ -1,7 +1,11 @@
 """
     χ²(fit::SemFit)
 
-Return the χ² value.
+Calculate the *χ²* (*chi-square*) value for the `fit`.
+
+The *χ²* is a test statistic for the SEM goodness-of-fit.
+It compares the *implied* covariance matrix of the SEM model
+with the *observed* covariance matrix.
 """
 χ²(fit::SemFit) = χ²(fit, fit.model)
 
@@ -26,9 +30,12 @@ end
 
 χ²(::Type{<:SemWLS}, fit::SemFit, model::AbstractSem) = (n_obs(model) - 1) * fit.minimum
 
+# TODO: implement χ² for individual SemML term
+
 function χ²(::Type{<:SemML}, fit::SemFit, model::AbstractSem)
     G = sum(loss_terms(model)) do term
             if issemloss(term)
+                @assert loss(term) isa SemML
                 data = observed(term)
                 something(weight(term), 1.0) * (logdet(obs_cov(data)) + n_man(data))
             else

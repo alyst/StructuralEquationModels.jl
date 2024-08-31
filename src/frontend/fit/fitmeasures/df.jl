@@ -2,7 +2,13 @@
     df(fit::SemFit)
     df(model::AbstractSem)
 
-Return the degrees of freedom.
+Get the *degrees of freedom* for the SEM model.
+
+The degrees of freedom for the SEM model with *N* observed variables
+is the difference between the number of parameters
+required to define the *N×N* covariance matrix (*½N(N+1)*)
+(plus *N* parameters for the observed means vector, if present),
+and the number of model parameters, [`nparams(model)`](@ref nparams).
 """
 function df end
 
