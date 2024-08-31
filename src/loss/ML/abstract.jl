@@ -56,3 +56,13 @@ end
 
 check_observed_vars(sem::SemLoss) =
     check_observed_vars(observed(sem), imply(sem))
+
+# returned objective if the implied Σ(par) matrix is not positive definite
+function non_posdef_objective(par::AbstractVector)
+    if eltype(par) <: AbstractFloat
+        return floatmax(eltype(par))
+    else
+        return typemax(eltype(par))
+    end
+end
+
