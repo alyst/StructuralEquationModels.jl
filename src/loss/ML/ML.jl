@@ -32,7 +32,7 @@ struct SemML{O, I, HE, M} <: SemLoss{O, I, HE}
     observed::O
     imply::I
 
-    obj_base::Float64 # fixed part of the objective function
+    obj_offset::Float64 # fixed part of the objective function
 
     # pre-allocated arrays to store intermediate results in evaluate!()
     obsXobs_1::M
@@ -50,6 +50,7 @@ end
 
 function SemML(observed::SemObserved,
                imply::SemImply;
+               minloglikelihood::Bool = false,
                approximate_hessian::Bool = false)
     # check integrity
     check_observed_vars(observed, imply)
@@ -57,12 +58,12 @@ function SemML(observed::SemObserved,
     obsXobs = parent(obs_cov(observed))
     nobs = nobserved_vars(imply)
     nvar = nvars(imply)
-    obj_base = -logdet(obs_cov(observed)) - nobs
+    obj_offset = minloglikelihood ? -logdet(obs_cov(observed)) - nobs : 0
 
     return SemML{typeof(observed), typeof(imply),
                  approximate_hessian ? ApproximateHessian : ExactHessian,
                  typeof(obsXobs)}(
-        observed, imply, obj_base,
+        observed, imply, obj_offset,
         similar(obsXobs), similar(obsXobs), similar(obsXobs),
         similar(obsXobs, (nobs, nvar)),
         similar(obsXobs, (nvar, nvar)), similar(obsXobs, (nvar, nvar)),
