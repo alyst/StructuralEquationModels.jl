@@ -14,3 +14,10 @@ function Xt_A_X!(res::AbstractMatrix, A::AbstractMatrix, X::SparseArrays.Abstrac
     Xt_A = !isnothing(Xt_A_buf) ? mul!(Xt_A_buf, X', A) : X'A
     return mul!(res', X', Xt_A', alpha, beta)
 end
+
+Xt_A_X(A::AbstractMatrix, X::AbstractMatrix,
+       alpha::Real = 1, beta::Real = 0;
+       A_X_buf::Union{AbstractMatrix, Nothing} = nothing) =
+    Xt_A_X!(Matrix{promote_type(eltype(A), eltype(X))}(undef, size(X, 2), size(X, 2)),
+            A, X, alpha, beta; A_X_buf)
+
