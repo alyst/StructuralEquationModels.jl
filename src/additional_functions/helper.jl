@@ -1,14 +1,20 @@
 # Neumann seriess representation of (I - mat)⁻¹
-function neumann_series(mat::SparseMatrixCSC; maxn::Integer = size(mat, 1))
-    inverse = I + mat
-    next_term = mat^2
+function neumann_series(mat::SparseMatrixCSC;
+                        maxn::Integer = size(mat, 1))
+    inverse = I
+    next_term = mat
 
-    n = 1
-    while nnz(next_term) != 0
-        (n <= maxn) || error("Neumann series did not converge in $maxn steps")
+    n = 0
+    converged = false
+    while n < maxn
+        converged = nnz(next_term) == 0
+        converged && break
+        n += 1
         inverse += next_term
         next_term *= mat
-        n += 1
+    end
+    if !converged
+        @warn("Neumann series did not converge in $maxn steps")
     end
 
     return inverse
