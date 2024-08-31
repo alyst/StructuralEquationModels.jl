@@ -1,6 +1,7 @@
 # Neumann seriess representation of (I - mat)⁻¹
 function neumann_series(mat::SparseMatrixCSC;
-                        maxn::Integer = size(mat, 1))
+                        maxn::Integer = size(mat, 1),
+                        Aⁿ_rewriter = nothing)
     inverse = I
     next_term = mat
 
@@ -12,6 +13,12 @@ function neumann_series(mat::SparseMatrixCSC;
         n += 1
         inverse += next_term
         next_term *= mat
+        if !isnothing(Aⁿ_rewriter)
+            for i in eachindex(next_term.nzval)
+                next_term.nzval[i] = Aⁿ_rewriter(next_term.nzval[i])
+            end
+            dropzeros!(next_term)
+        end
     end
     if !converged
         @warn("Neumann series did not converge in $maxn steps")
