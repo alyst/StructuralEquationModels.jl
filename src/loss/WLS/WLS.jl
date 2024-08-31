@@ -118,20 +118,27 @@ function evaluate!(objective, gradient, hessian,
     σ₋ = σₒ - σ
 
     isnothing(objective) || (objective = dot(σ₋, V, σ₋))
+    if !isnothing(gradient) || !isnothing(hessian) && (HessianEvaluation(wls) === ExactHessian)
+        J = V * σ₋
+        lmul!(-2, J)
+    else
+        J = nothing
+    end
     if !isnothing(gradient)
         if issparse(∇σ)
-            gradient .= (σ₋'*V*∇σ)'
+            gradient .= (J'*∇σ)'
         else # save one allocation
-            mul!(gradient, σ₋'*V, ∇σ) # actually transposed, but should be fine for vectors
+            mul!(gradient, J', ∇σ) # actually transposed, but should be fine for vectors
         end
-        gradient .*= -2
     end
-    isnothing(hessian) || (mul!(hessian, ∇σ'*V, ∇σ, 2, 0))
-    if !isnothing(hessian) && (HessianEvaluation(wls) === ExactHessian)
-        ∇²Σ = implied.∇²Σ
-        J = -2*(σ₋'*wls.V)'
-        implied.∇²Σ_eval!(∇²Σ, J, par)
-        hessian .+= ∇²Σ
+    if !isnothing(hessian)
+        if (HessianEvaluation(wls) === ExactHessian)
+            implied.∇²Σ_eval!(hessian, J, par)
+            β = 1
+        else
+            β = 0
+        end
+        Xt_A_X!(hessian, V, ∇σ, 2, β)
     end
     if MeanStructure(implied) === HasMeanStructure
         μ = implied.μ
