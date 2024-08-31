@@ -128,10 +128,9 @@ function evaluate!(objective, gradient, hessian,
     end
     isnothing(hessian) || (mul!(hessian, ∇σ'*V, ∇σ, 2, 0))
     if !isnothing(hessian) && (HessianEvaluation(wls) === ExactHessian)
-        ∇²Σ_function! = implied.∇²Σ_function
         ∇²Σ = implied.∇²Σ
         J = -2*(σ₋'*wls.V)'
-        ∇²Σ_function!(∇²Σ, J, par)
+        implied.∇²Σ_eval!(∇²Σ, J, par)
         hessian .+= ∇²Σ
     end
     if MeanStructure(implied) === HasMeanStructure
