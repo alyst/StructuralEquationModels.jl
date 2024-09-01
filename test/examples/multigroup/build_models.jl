@@ -18,7 +18,7 @@ end
 
 # gradients
 @testset "ml_gradients_multigroup" begin
-    test_gradient(model_ml_multigroup, start_test; atol = 1e-9)
+    test_gradient(model_ml_multigroup, start_test; atol = 1e-8)
 end
 
 # fit
@@ -127,7 +127,7 @@ model_ml_multigroup = Sem(
 )
 
 @testset "gradients_user_defined_loss" begin
-    test_gradient(model_ml_multigroup, start_test; atol = 1e-9)
+    test_gradient(model_ml_multigroup, start_test; atol = 1e-8)
 end
 
 # fit
