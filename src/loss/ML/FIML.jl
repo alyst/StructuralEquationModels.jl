@@ -93,8 +93,6 @@ struct SemFIML{O, I, T, W} <: SemLoss{O, I, ExactHessian}
 
     patterns::Vector{SemFIMLPattern{T}}
 
-    imp_inv::Matrix{T}  # implied inverse
-
     commutator::CommutationMatrix
     #Q::SparseMatrixCSC{T}
     #q_indices::Vector{Int}
@@ -159,7 +157,6 @@ function SemFIML(observed::SemObservedMissing, imply::SemImply)
 =#
     return SemFIML(observed, imply,
                    [SemFIMLPattern(pat) for pat in observed.patterns],
-                   zeros(n_man(observed), n_man(observed)),
                    CommutationMatrix(nvars(imply)),
                    #SparseMatrixCSC(n^2, n^2, Q_colptr, Q_rowvals, ones(length(Q_rowvals))),
                    #q_indices, Q_nzixs2, q_indices2,
@@ -173,16 +170,8 @@ end
 function evaluate!(objective, gradient, hessian,
                    fiml::SemFIML, params)
 
-    isnothing(hessian) || error("Hessian not implemented for FIML")
-
-    copyto!(fiml.imp_inv, fiml.imply.Σ)
-    Σ_chol = cholesky!(Symmetric(fiml.imp_inv); check = false)
-
-    if !isposdef(Σ_chol)
-        isnothing(objective) || (objective = non_posdef_objective(params))
-        isnothing(gradient) || fill!(gradient, 1)
-        return objective
-    end
+    isnothing(hessian) || error("Hessian is not implemented for FIML")
+    @check_isposdef_Σ(fiml.imply, params)
 
     @inbounds for (pat_fiml, pat) in zip(fiml.patterns, fiml.observed.patterns)
         prepare!(pat_fiml, pat, fiml.imply)

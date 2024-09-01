@@ -65,31 +65,37 @@ Additional interfaces
 Only available in gradient! calls:
 - `I_A⁻¹(::RAM)` -> ``(I-A)^{-1}``
 """
-mutable struct RAM{MS, A1, A2, A3, A4, A5, A6, V2, M1, M2, M3, M4, S1, S2, S3} <: SemImply{MS, ExactHessian}
-    Σ::A1
-    A::A2
-    S::A3
-    F::A4
-    μ::A5
-    M::A6
+mutable struct RAM{MS, SPEC, T, M_A, M_FA, M_S, M_F, M_SGM, M_ISGM, M_CHOL, CHOL, V_M, GM, GM_M} <: SemImply{MS, ExactHessian}
+    ram_matrices::SPEC
 
-    ram_matrices::V2
+    A::M_A
+    S::M_S
+    F::M_F
+    μ::V_M
+    M::V_M
 
-    F⨉I_A⁻¹::M1
-    F⨉I_A⁻¹S::M2
-    I_A::M3
-    I_A⁻¹::M4
+    F⨉I_A⁻¹::M_FA
+    F⨉I_A⁻¹S::M_FA
 
-    ∇A::S1
-    ∇S::S2
-    ∇M::S3
+    I_A::M_A
+    I_A⁻¹::M_A
+
+    Σ::M_SGM
+
+    _Σ_chol_buf::M_CHOL
+    _Σ_chol::Union{CHOL, Nothing}
+    _isposdef_Σ::Union{Bool, Nothing}
+    _logdet_Σ::Union{T, Nothing}
+    _Σ⁻¹::Union{M_ISGM, Nothing}
+
+    ∇A::GM
+    ∇S::GM
+    ∇M::GM_M
 end
 
 ############################################################################################
 ### Constructors
 ############################################################################################
-
-RAM{MS}(args...) where MS <: MeanStructure = RAM{MS, map(typeof, args)...}(args...)
 
 function RAM(spec::SemSpecification;
     #vech = false,
@@ -104,19 +110,17 @@ function RAM(spec::SemSpecification;
     n_var = nvars(ram_matrices)
 
     #preallocate arrays
-    rand_params = randn(Float64, n_par)
+    T = Float64
+    rand_params = randn(T, n_par)
     A_pre = check_acyclic(materialize(ram_matrices.A, rand_params))
     S_pre = Symmetric((sparse_S ? sparse_materialize : materialize)(ram_matrices.S, rand_params))
     F = copy(ram_matrices.F)
 
     # pre-allocate some matrices
-    Σ = Symmetric(zeros(n_obs, n_obs))
-    F⨉I_A⁻¹ = zeros(n_obs, n_var)
-    F⨉I_A⁻¹S = zeros(n_obs, n_var)
-    I_A = convert(Matrix, I - A_pre)
-    I_A = istril(I_A) ? LowerTriangular(I_A) :
-          istriu(I_A) ? UpperTriangular(I_A) :
-          I_A
+    I_A = typeof(A_pre)(I - parent(A_pre))
+    F⨉I_A⁻¹ = F * A_pre
+    F⨉I_A⁻¹S = similar(F⨉I_A⁻¹)
+    Σ = Symmetric(zeros(T, n_obs, n_obs))
 
     if gradient_required
         ∇A = sparse_gradient(ram_matrices.A)
@@ -139,20 +143,22 @@ function RAM(spec::SemSpecification;
         ∇M = nothing
     end
 
-    return RAM{MS}(
-        Σ,
+    Σ_chol = cholesky!(convert(Matrix{T}, I(size(Σ, 1))))
+
+    return RAM{MS, typeof(ram_matrices), T,
+               typeof(A_pre), typeof(F⨉I_A⁻¹), typeof(S_pre), typeof(F),
+               typeof(Σ), typeof(Symmetric(Σ_chol.factors)), typeof(Σ_chol.factors), typeof(Σ_chol),
+               typeof(M_pre), typeof(∇A), typeof(∇M)}(
+        ram_matrices,
         A_pre,
         S_pre,
         F,
-        μ,
-        M_pre,
+        μ, M_pre,
 
-        ram_matrices,
+        F⨉I_A⁻¹, F⨉I_A⁻¹S,
+        I_A, similar(I_A),
 
-        F⨉I_A⁻¹,
-        F⨉I_A⁻¹S,
-        I_A,
-        similar(I_A),
+        Σ, Σ_chol.factors, nothing, nothing, nothing, nothing,
 
         ∇A,
         ∇S,
@@ -165,6 +171,8 @@ end
 ############################################################################################
 
 function update!(targets::EvaluationTargets, imply::RAM, params)
+    reset_Σ_chol!(imply)
+
     materialize!(imply.A, imply.ram_matrices.A, params)
     materialize!(imply.S, imply.ram_matrices.S, params)
     if !isnothing(imply.M)

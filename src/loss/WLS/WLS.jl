@@ -105,6 +105,7 @@ function evaluate!(objective, gradient, hessian,
                    wls::SemWLS, par
 )
     implied = imply(wls)
+    #@check_isposdef_Σ(implied, par) not checked since WLS works in vech mode
 
     if !isnothing(hessian) && (MeanStructure(implied) === HasMeanStructure)
         error("hessian of WLS with meanstructure is not available")

@@ -74,115 +74,114 @@ end
 ### objective, gradient, hessian methods
 ############################################################################################
 
-############################################################################################
-### Symbolic Imply Types
-
-function evaluate!(
-    objective, gradient, hessian,
-    ml::SemML{<:Any, <:SemImplySymbolic},
-    par
-)
-    implied = imply(ml)
-
-    if !isnothing(hessian)
-        (MeanStructure(implied) === HasMeanStructure) &&
-            throw(DomainError(H, "hessian of ML + meanstructure is not available"))
-    end
-
-    Σ = implied.Σ
-    Σₒ = obs_cov(observed(ml))
-
-    Σ⁻¹ = copy!(ml.obsXobs_1, Σ)
-    Σ_chol = cholesky!(Symmetric(Σ⁻¹); check = false)
-    if !isposdef(Σ_chol)
-        #@warn "∑⁻¹ is not positive definite"
-        isnothing(objective) || (objective = non_posdef_objective(par))
-        isnothing(gradient) || fill!(gradient, 1)
-        isnothing(hessian) || copyto!(hessian, I)
-        return objective
-    end
-    logdet_Σ = logdet(Σ_chol)
-    Σ⁻¹ = LinearAlgebra.inv!(Σ_chol)
-    Σ⁻¹Σₒ = mul!(ml.obsXobs_2, Σ⁻¹, Σₒ)
-    isnothing(objective) || (objective = ml.obj_base + logdet_Σ + tr(Σ⁻¹Σₒ))
-
-    if MeanStructure(implied) === HasMeanStructure
-        μ = implied.μ
-        μₒ = obs_mean(observed(ml))
-        μ₋ = μₒ - μ
-
-        isnothing(objective) || (objective += dot(μ₋, Σ⁻¹, μ₋))
-        if !isnothing(gradient)
-            ∇Σ = implied.∇Σ
-            ∇μ = implied.∇μ
-            μ₋ᵀΣ⁻¹ = μ₋'*Σ⁻¹
-            mul!(gradient, ∇Σ', vec(Σ⁻¹*(I - mul!(ml.obsXobs_3, Σₒ, Σ⁻¹) - μ₋*μ₋ᵀΣ⁻¹)))
-            mul!(gradient, ∇μ', μ₋ᵀΣ⁻¹', -2, 1)
-        end
-    elseif !isnothing(gradient) || !isnothing(hessian)
-        ∇Σ = implied.∇Σ
-        Σ⁻¹ΣₒΣ⁻¹ = mul!(ml.obsXobs_3, Σ⁻¹Σₒ, Σ⁻¹)
-        J = vec(Σ⁻¹ - Σ⁻¹ΣₒΣ⁻¹)'
-        if !isnothing(gradient)
-            mul!(gradient, ∇Σ', J')
-        end
-        if !isnothing(hessian)
-            if HessianEvaluation(ml) === ApproximateHessian
-                mul!(hessian, ∇Σ'*kron(Σ⁻¹, Σ⁻¹), ∇Σ, 2, 0)
-            else
-                ∇²Σ = implied.∇²Σ
-                # inner
-                implied.∇²Σ_eval!(∇²Σ, J, par)
-                # outer
-                H_outer = kron(2Σ⁻¹ΣₒΣ⁻¹ - Σ⁻¹, Σ⁻¹)
-                mul!(hessian, ∇Σ'*H_outer, ∇Σ)
-                hessian .+= ∇²Σ
-            end
-        end
-    end
-    return objective
-end
-
-############################################################################################
-### Non-Symbolic Imply Types
-
 function evaluate!(
     objective, gradient, hessian,
     ml::SemML,
     par
 )
+    implied = imply(ml)
+    @check_isposdef_Σ(implied, par)
+
+    Σₒ = obs_cov(observed(ml))
+    Σ⁻¹ = implied.Σ⁻¹
+    # skip Σ⁻¹Σₒ if only the objective is needed
+    # since for the objective we only need its trace
+    Σ⁻¹Σₒ = !isnothing(gradient) || !isnothing(hessian) ?
+        mul!(ml.obsXobs_1, Σ⁻¹, Σₒ) : nothing
+    if !isnothing(objective)
+        objective = ml.obj_offset + implied.logdet_Σ +
+            (!isnothing(Σ⁻¹Σₒ) ? tr(Σ⁻¹Σₒ) : dot(Σ⁻¹, Σₒ))
+    end
+
+    if MeanStructure(implied) === HasMeanStructure
+        μ₋ = obs_mean(observed(ml)) - implied.μ
+        isnothing(objective) || (objective += dot(μ₋, Σ⁻¹, μ₋))
+    else
+        μ₋ = nothing
+    end
+
+    if !isnothing(gradient) || !isnothing(hessian)
+        # Σ⁻¹ - Σ⁻¹Σₒ*Σ⁻¹
+        Σ⁻¹ = implied.Σ⁻¹
+        Σ⁻¹mΣ⁻¹ΣₒΣ⁻¹ = mul!(copy!(ml.obsXobs_2, Σ⁻¹), Σ⁻¹Σₒ, Σ⁻¹, -1, 1)
+        # Σ⁻¹Σₒ (i.e. ml.obsXobs_1) is no longer needed
+
+        evaluate_gradient_hessian!(
+            gradient, hessian,
+            ml, par, Symmetric(Σ⁻¹mΣ⁻¹ΣₒΣ⁻¹), μ₋
+        )
+    end
+    return objective
+end
+
+############################################################################################
+### Symbolic Imply Types
+
+function evaluate_gradient_hessian!(
+    gradient, hessian,
+    ml::SemML{<:Any, <:SemImplySymbolic},
+    par, Σ⁻¹mΣ⁻¹ΣₒΣ⁻¹, μ₋
+)
+    implied = imply(ml)
     if !isnothing(hessian)
-        error("hessian of ML + non-symbolic imply type is not available")
+        (MeanStructure(implied) === HasMeanStructure) &&
+            throw(DomainError(H, "hessian of ML with meanstructure is not supported"))
+    end
+
+    # Σ⁻¹ - Σ⁻¹Σₒ*Σ⁻¹
+    Σ⁻¹ = implied.Σ⁻¹
+
+    if MeanStructure(implied) === HasMeanStructure
+        if !isnothing(gradient)
+            ∇Σ = implied.∇Σ
+            ∇μ = implied.∇μ
+            Σ⁻¹μ₋ = Σ⁻¹*μ₋
+            # Σ⁻¹mΣ⁻¹ΣₒΣ⁻¹mμμ = Σ⁻¹*(I - ΣₒΣ⁻¹ - μ₋*μ₋ᵀΣ⁻¹) = Σ⁻¹ - Σ⁻¹Σₒ*Σ⁻¹ - (Σ⁻¹μ₋)*(Σ⁻¹μ₋)ᵀ
+            Σ⁻¹mΣ⁻¹ΣₒΣ⁻¹mμμ = copy!(ml.obsXobs_1, Σ⁻¹mΣ⁻¹ΣₒΣ⁻¹)
+            mul!(Σ⁻¹mΣ⁻¹ΣₒΣ⁻¹mμμ, Σ⁻¹μ₋, Σ⁻¹μ₋', -1, 1)
+            mul!(gradient, ∇Σ', vec(Σ⁻¹mΣ⁻¹ΣₒΣ⁻¹mμμ))
+            mul!(gradient, ∇μ', Σ⁻¹μ₋, -2, 1)
+        end
+    elseif !isnothing(gradient) || !isnothing(hessian) # no meanstructure
+        ∇Σ = implied.∇Σ
+        J = vec(Σ⁻¹mΣ⁻¹ΣₒΣ⁻¹)
+        if !isnothing(gradient)
+            mul!(gradient, ∇Σ', J)
+        end
+        if !isnothing(hessian)
+            if HessianEvaluation(ml) === ApproximateHessian
+                # inner is zero
+                Σ_H = Σ⁻¹
+                α = 2
+                β = 0
+            else
+                implied.∇²Σ_eval!(hessian, J, par) # inner
+                Σ_H = ml.obsXobs_3
+                Σ_H .= Σ⁻¹ .- 2 .* Σ⁻¹mΣ⁻¹ΣₒΣ⁻¹ # 2Σ⁻¹Σₒ*Σ⁻¹ - Σ⁻¹
+                α = 1
+                β = 1
+            end
+            H_outer = kron(Σ_H, Σ⁻¹)
+            Xt_A_X!(hessian, H_outer, ∇Σ, α, β)
+        end
+    end
+    return nothing
+end
+
+############################################################################################
+### Non-Symbolic Imply Types
+
+function evaluate_gradient_hessian!(
+    gradient, hessian,
+    ml::SemML,
+    par, Σ⁻¹mΣ⁻¹ΣₒΣ⁻¹, μ₋
+)
+    if !isnothing(hessian)
+        error("hessian of ML with non-symbolic imply type is not supported")
     end
 
     implied = imply(ml)
-
-    Σ = implied.Σ
-    Σₒ = obs_cov(observed(ml))
-
-    Σ⁻¹ = copy!(ml.obsXobs_1, Σ)
-    Σ_chol = cholesky!(Symmetric(Σ⁻¹); check = false)
-    if !isposdef(Σ_chol)
-        #@warn "Σ⁻¹ is not positive definite"
-        isnothing(objective) || (objective = non_posdef_objective(par))
-        isnothing(gradient) || fill!(gradient, 1)
-        isnothing(hessian) || copyto!(hessian, I)
-        return objective
-    end
-    logdet_Σ = logdet(Σ_chol)
-    Σ⁻¹ = LinearAlgebra.inv!(Σ_chol)
-    Σ⁻¹Σₒ = mul!(ml.obsXobs_2, Σ⁻¹, Σₒ)
-
-    if !isnothing(objective)
-        objective = ml.obj_base + logdet_Σ + tr(Σ⁻¹Σₒ)
-
-        if MeanStructure(implied) === HasMeanStructure
-            μ = implied.μ
-            μₒ = obs_mean(observed(ml))
-            μ₋ = μₒ - μ
-            objective += dot(μ₋, Σ⁻¹, μ₋)
-        end
-    end
+    Σ⁻¹ = implied.Σ⁻¹
 
     if !isnothing(gradient)
         S = implied.S
@@ -191,35 +190,24 @@ function evaluate!(
         ∇A = implied.∇A
         ∇S = implied.∇S
 
-        # reuse Σ⁻¹Σₒ to calculate I-Σ⁻¹Σₒ
-        one_Σ⁻¹Σₒ = Σ⁻¹Σₒ
-        lmul!(-1, one_Σ⁻¹Σₒ)
-        one_Σ⁻¹Σₒ[diagind(one_Σ⁻¹Σₒ)] .+= 1
-
-        C = mul!(ml.varXvar_1, F⨉I_A⁻¹',
-                 mul!(ml.obsXvar_1,
-                      Symmetric(mul!(ml.obsXobs_3, one_Σ⁻¹Σₒ, Σ⁻¹)), F⨉I_A⁻¹))
+        C = Xt_A_X!(ml.varXvar_1, Σ⁻¹mΣ⁻¹ΣₒΣ⁻¹, F⨉I_A⁻¹, A_X_buf = ml.obsXvar_1)
         mul!(gradient, ∇A',
              vec(mul!(ml.varXvar_3,
                     Symmetric(C),
                     mul!(ml.varXvar_2, S, I_A⁻¹'))), 2, 0)
         mul!(gradient, ∇S', vec(C), 1, 1)
 
-        if MeanStructure(implied) === HasMeanStructure
-            μ = implied.μ
-            μₒ = obs_mean(observed(ml))
+        if !isnothing(μ₋)
             ∇M = implied.∇M
             M = implied.M
-            μ₋ = μₒ - μ
-            μ₋ᵀΣ⁻¹ = μ₋'*Σ⁻¹
-            k = μ₋ᵀΣ⁻¹*F⨉I_A⁻¹
-            mul!(gradient, ∇M', k', -2, 1)
-            mul!(gradient, ∇A', vec(mul!(ml.varXvar_1, k', (I_A⁻¹*(M + S*k'))')), -2, 1)
-            mul!(gradient, ∇S', vec(mul!(ml.varXvar_2, k', k)), -1, 1)
+            k = F⨉I_A⁻¹'*(Σ⁻¹*μ₋)
+            mul!(gradient, ∇M', k, -2, 1)
+            mul!(gradient, ∇A', vec(mul!(ml.varXvar_1, k, (I_A⁻¹*(M + S*k))')), -2, 1)
+            mul!(gradient, ∇S', vec(mul!(ml.varXvar_1, k, k')), -1, 1)
         end
     end
 
-    return objective
+    return nothing
 end
 
 ############################################################################################

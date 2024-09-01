@@ -66,3 +66,15 @@ function non_posdef_objective(par::AbstractVector)
     end
 end
 
+# return non_posdef_objective() if the Σ(par) matrix is not positive definite
+macro check_isposdef_Σ(implied, params)
+    quote
+        if !isposdef_Σ($(esc(implied)))
+            #@warn "Σ is not positive definite"
+            isnothing($(esc(:objective))) || ($(esc(:objective)) = non_posdef_objective($(esc(params))))
+            isnothing($(esc(:gradient))) || fill!($(esc(:gradient)), 1)
+            isnothing($(esc(:hessian))) || fill!($(esc(:hessian)), 1)
+            return $(esc(:objective))
+        end
+    end
+end
