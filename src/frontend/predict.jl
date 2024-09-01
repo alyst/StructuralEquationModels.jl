@@ -69,7 +69,7 @@ function latent_scores_operator(::SemBartlettScores, model::SemLoss, params::Abs
     ov_S⁻¹ = inv(S[obs_inds, obs_inds])
     lv_FA⨉ov_S⁻ = lv_FA' * ov_S⁻¹
     cov_lv⁻¹ = lv_FA⨉ov_S⁻ * lv_FA
-    (alpha != 0) && cov_lv += alpha * I
+    (alpha != 0) && (cov_lv += alpha * I)
     cov_lv = inv(cov_lv⁻¹)
 
     return cov_lv * lv_FA⨉ov_S⁻¹
