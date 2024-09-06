@@ -38,7 +38,7 @@ struct SemML{O, I, HE, M} <: SemLoss{O, I, HE}
     obsXobs_1::M
     obsXobs_2::M
     obsXobs_3::M
-    obsXvar_1::M
+    varXobs_1::M
     varXvar_1::M
     varXvar_2::M
     varXvar_3::M
@@ -65,7 +65,7 @@ function SemML(observed::SemObserved,
                  typeof(obsXobs)}(
         observed, imply, obj_offset,
         similar(obsXobs), similar(obsXobs), similar(obsXobs),
-        similar(obsXobs, (nobs, nvar)),
+        similar(obsXobs, (nvar, nobs)),
         similar(obsXobs, (nvar, nvar)), similar(obsXobs, (nvar, nvar)),
         similar(obsXobs, (nvar, nvar)))
 end
@@ -190,7 +190,7 @@ function evaluate_gradient_hessian!(
         ∇A = implied.∇A
         ∇S = implied.∇S
 
-        C = Xt_A_X!(ml.varXvar_1, Σ⁻¹mΣ⁻¹ΣₒΣ⁻¹, F⨉I_A⁻¹, A_X_buf = ml.obsXvar_1)
+        C = Xt_A_X!(ml.varXvar_1, Σ⁻¹mΣ⁻¹ΣₒΣ⁻¹, F⨉I_A⁻¹, Xt_A_buf = ml.varXobs_1)
         mul!(gradient, ∇A',
              vec(mul!(ml.varXvar_3,
                     Symmetric(C),
