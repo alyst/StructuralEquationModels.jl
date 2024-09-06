@@ -29,7 +29,8 @@ function check_acyclic(A::AbstractMatrix)
     end
 end
 
-function reset_Σ_chol!(imply::SemImply)
+# reset the covariation-related fields
+function reset_covars!(imply::SemImply)
     imply._Σ_chol = nothing
     imply._isposdef_Σ = nothing
     imply._logdet_Σ = nothing
@@ -37,7 +38,10 @@ function reset_Σ_chol!(imply::SemImply)
     return nothing
 end
 
-function update_Σ_cholesky!(imply::SemImply)
+# update covariation-related fields
+# some implementations may update some, but not all of the fields
+# delaying the update of the specific fields until needed
+function update_covars!(imply::SemImply)
     isnothing(imply._Σ_chol) || return nothing
 
     copy!(imply._Σ_chol_buf, imply.Σ)
@@ -48,21 +52,23 @@ function update_Σ_cholesky!(imply::SemImply)
 end
 
 function isposdef_Σ(imply::SemImply)
-    isnothing(imply._isposdef_Σ) && update_Σ_cholesky!(imply)
+    isnothing(imply._isposdef_Σ) && update_covars!(imply)
     return imply._isposdef_Σ
 end
 
 @inline function Base.getproperty(imply::SemImply, name::Symbol)
-    if name == :Σ_chol # lazy cholesky(Σ)
-        isnothing(imply._Σ_chol) && update_Σ_cholesky!(imply)
-        return imply._Σ_chol
-    elseif name == :logdet_Σ # lazy log(det(Σ))
-        isnothing(imply._logdet_Σ) && update_Σ_cholesky!(imply)
+    if name == :logdet_Σ # lazy log(det(Σ))
+        isnothing(imply._logdet_Σ) && update_covars!(imply)
         return imply._logdet_Σ
     elseif name == :Σ⁻¹ # lazy Σ⁻¹
         if isnothing(imply._Σ⁻¹)
-            imply._Σ⁻¹ = Symmetric(LinearAlgebra.inv!(imply.Σ_chol))
-            imply._Σ_chol = nothing # invalidate Σ_chol since it got inverted
+            update_covars!(imply)
+            if isposdef_Σ(imply)
+                imply._Σ⁻¹ = Symmetric(LinearAlgebra.inv!(imply._Σ_chol))
+                imply._Σ_chol = nothing # invalidate Σ_chol since it got inverted
+            else
+                throw(LinearAlgebra.PosDefException(imply._Σ_chol.info))
+            end
         end
         return imply._Σ⁻¹
     else

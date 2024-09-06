@@ -221,7 +221,7 @@ end
 ############################################################################################
 
 function update!(targets::EvaluationTargets, imply::RAMSymbolic, par)
-    reset_Σ_chol!(imply)
+    reset_covars!(imply)
 
     imply.Σ_eval!(parent(imply.Σ), par)
     if MeanStructure(imply) === HasMeanStructure

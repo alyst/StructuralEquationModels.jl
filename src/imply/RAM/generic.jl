@@ -171,7 +171,7 @@ end
 ############################################################################################
 
 function update!(targets::EvaluationTargets, imply::RAM, params)
-    reset_Σ_chol!(imply)
+    reset_covars!(imply)
 
     materialize!(imply.A, imply.ram_matrices.A, params)
     materialize!(imply.S, imply.ram_matrices.S, params)
