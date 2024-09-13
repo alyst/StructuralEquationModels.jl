@@ -59,6 +59,11 @@ fitmeasure_names_ls = Dict(
     :RMSEA => "rmsea",
 )
 
+fitmeasure_names = Dict(
+    "ml" => fitmeasure_names_ml,
+    "ls" => fitmeasure_names_ls,
+)
+
 function test_fitmeasures(
         measures,
         measures_lav;

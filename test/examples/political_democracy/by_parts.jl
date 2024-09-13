@@ -75,26 +75,20 @@ end
 ### test fit assessment
 ############################################################################################
 
-@testset "fitmeasures/se_ml" begin
-    solution_ml = sem_fit(semoptimizer, model_ml)
-    test_fitmeasures(fit_measures(solution_ml), solution_lav[:fitmeasures_ml];
-        atol = 1e-3)
+@testset "fitmeasures/se_$id" for id in ["ml", "ls_sym"]
+    model = models[id]
+    sol = sem_fit(semoptimizer, model)
+    model_type = replace(id, r"_.+$" => "")
+    fm = fit_measures(sol)
+    test_fitmeasures(fm, solution_lav[Symbol("fitmeasures_", model_type)];
+                     atol = 1e-3, fitmeasure_names = fitmeasure_names[model_type])
+    if model_type == "ls"
+        @test ismissing(fm[:AIC]) && ismissing(fm[:BIC]) && ismissing(fm[:minus2ll])
+    end
 
-    update_se_hessian!(partable, solution_ml)
-    test_estimates(partable, solution_lav[:parameter_estimates_ml];
+    update_se_hessian!(partable, sol)
+    test_estimates(partable, solution_lav[Symbol("parameter_estimates_", model_type)];
         atol = 1e-3, col = :se, lav_col = :se)
-end
-
-@testset "fitmeasures/se_ls" begin
-    solution_ls = sem_fit(semoptimizer, model_ls_sym)
-    fm = fit_measures(solution_ls)
-    test_fitmeasures(fm, solution_lav[:fitmeasures_ls]; atol = 1e-3,
-        fitmeasure_names = fitmeasure_names_ls)
-    @test ismissing(fm[:AIC]) && ismissing(fm[:BIC]) && ismissing(fm[:minus2ll])
-
-    update_se_hessian!(partable, solution_ls)
-    test_estimates(partable, solution_lav[:parameter_estimates_ls]; atol = 1e-2,
-        col = :se, lav_col = :se)
 end
 
 ############################################################################################
@@ -192,27 +186,20 @@ end
 ### test fit assessment
 ############################################################################################
 
-@testset "fitmeasures/se_ml_mean" begin
-    solution_ml = sem_fit(model_ml)
-    test_fitmeasures(fit_measures(solution_ml), solution_lav[:fitmeasures_ml_mean];
-        atol = 1e-3)
+@testset "fitmeasures/se_$(id)_mean" for id in ["ml", "ls_sym"]
+    model = models[id]
+    sol = sem_fit(semoptimizer, model)
+    model_type = replace(id, r"_.+$" => "")
+    fm = fit_measures(sol)
+    test_fitmeasures(fm, solution_lav[Symbol("fitmeasures_", model_type)];
+                     atol = 1e-3, fitmeasure_names = fitmeasure_names[model_type])
+    if model_type == "ls"
+        @test ismissing(fm[:AIC]) && ismissing(fm[:BIC]) && ismissing(fm[:minus2ll])
+    end
 
-    update_se_hessian!(partable_mean, solution_ml)
-    test_estimates(partable_mean, solution_lav[:parameter_estimates_ml_mean];
-        atol = 0.002, col = :se, lav_col = :se)
-end
-
-@testset "fitmeasures/se_ls_mean" begin
-    solution_ls = sem_fit(model_ls)
-    fm = fit_measures(solution_ls)
-    test_fitmeasures(fm,
-        solution_lav[:fitmeasures_ls_mean];
-        atol = 1e-3,
-        fitmeasure_names = fitmeasure_names_ls)
-    @test ismissing(fm[:AIC]) && ismissing(fm[:BIC]) && ismissing(fm[:minus2ll])
-
-    update_se_hessian!(partable_mean, solution_ls)
-    test_estimates(partable_mean, solution_lav[:parameter_estimates_ls_mean]; atol = 1e-2, col = :se, lav_col = :se)
+    update_se_hessian!(partable, sol)
+    test_estimates(partable, solution_lav[Symbol("parameter_estimates_", model_type)];
+        atol = 1e-3, col = :se, lav_col = :se)
 end
 
 ############################################################################################
