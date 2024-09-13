@@ -238,6 +238,15 @@ end
 
 Base.convert(::Type{RAMMatrices}, partable::ParameterTable) = RAMMatrices(partable)
 
+# reorders the observed variables in the RAMMatrices, i.e. the order of the rows in F
+function reorder_observed_vars!(ram::RAMMatrices, new_order::AbstractVector{Symbol})
+    # just check that it's 1-to-1
+    src2dest = source_to_dest_perm(observed_vars(ram), new_order,
+                                   one_to_one=true, entities="observed variables")
+    copy!(ram.F, ram.F[src2dest, :])
+    return ram
+end
+
 ############################################################################################
 ### get parameter table from RAMMatrices
 ############################################################################################
