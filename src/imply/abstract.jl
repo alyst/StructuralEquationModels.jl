@@ -35,26 +35,32 @@ function reset_covars!(imply::SemImply)
     imply._isposdef_Σ = nothing
     imply._logdet_Σ = nothing
     imply._Σ⁻¹ = nothing
-    return nothing
 end
 
 # update covariation-related fields
 # some implementations may update some, but not all of the fields
 # delaying the update of the specific fields until needed
 function update_covars!(imply::SemImply)
-    isnothing(imply._Σ_chol) || return nothing
-
-    copy!(imply._Σ_chol_buf, imply.Σ)
-    imply._Σ_chol = cholesky!(imply._Σ_chol_buf; check=false)
-    imply._isposdef_Σ = isposdef(imply._Σ_chol)
-    imply._logdet_Σ = imply._isposdef_Σ ? logdet(imply._Σ_chol) : NaN # cheap
-    return nothing
+    if isnothing(imply._Σ_chol) # skip if already updated
+        copy!(imply._Σ_chol_buf, imply.Σ)
+        imply._Σ_chol = cholesky!(imply._Σ_chol_buf; check=false)
+        imply._isposdef_Σ = isposdef(imply._Σ_chol)
+        imply._logdet_Σ = imply._isposdef_Σ ? logdet(imply._Σ_chol) : NaN # cheap
+    end
 end
 
 function isposdef_Σ(imply::SemImply)
     isnothing(imply._isposdef_Σ) && update_covars!(imply)
     return imply._isposdef_Σ
 end
+
+startswith_undescore(s::AbstractString) = startswith(s, '_')
+startswith_undescore(s::Symbol) = startswith_undescore(String(s))
+
+Base.propertynames(implied::SemImply, private::Bool=false) =
+    (:logdet_Σ, :Σ⁻¹,
+     (private ? fieldnames(typeof(implied)) :
+                filter(!startswith_undescore, fieldnames(typeof(implied))))...)
 
 @inline function Base.getproperty(imply::SemImply, name::Symbol)
     if name == :logdet_Σ # lazy log(det(Σ))
