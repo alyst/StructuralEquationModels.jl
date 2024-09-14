@@ -138,7 +138,7 @@ function evaluate_gradient_hessian!(
             Σ⁻¹μ₋ = Σ⁻¹*μ₋
             # Σ⁻¹mΣ⁻¹ΣₒΣ⁻¹mμμ = Σ⁻¹*(I - ΣₒΣ⁻¹ - μ₋*μ₋ᵀΣ⁻¹) = Σ⁻¹ - Σ⁻¹Σₒ*Σ⁻¹ - (Σ⁻¹μ₋)*(Σ⁻¹μ₋)ᵀ
             Σ⁻¹mΣ⁻¹ΣₒΣ⁻¹mμμ = copy!(ml.obsXobs_1, Σ⁻¹mΣ⁻¹ΣₒΣ⁻¹)
-            mul!(Σ⁻¹mΣ⁻¹ΣₒΣ⁻¹mμμ, Σ⁻¹μ₋, Σ⁻¹μ₋', -1, 1)
+            X_Xt!(Σ⁻¹mΣ⁻¹ΣₒΣ⁻¹mμμ, Σ⁻¹μ₋, -1, 1)
             mul!(gradient, ∇Σ', vec(Σ⁻¹mΣ⁻¹ΣₒΣ⁻¹mμμ))
             mul!(gradient, ∇μ', Σ⁻¹μ₋, -2, 1)
         end
@@ -203,7 +203,7 @@ function evaluate_gradient_hessian!(
             k = F⨉I_A⁻¹'*(Σ⁻¹*μ₋)
             mul!(gradient, ∇M', k, -2, 1)
             mul!(gradient, ∇A', vec(mul!(ml.varXvar_1, k, (I_A⁻¹*(M + S*k))')), -2, 1)
-            mul!(gradient, ∇S', vec(mul!(ml.varXvar_1, k, k')), -1, 1)
+            mul!(gradient, ∇S', vec(X_Xt!(ml.varXvar_1, k)), -1, 1)
         end
     end
 

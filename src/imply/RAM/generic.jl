@@ -203,8 +203,7 @@ function update!(targets::EvaluationTargets, imply::RAM, params)
         rdiv!(imply.F⨉I_A⁻¹, factorize(imply.I_A))
     end
 
-    mul!(imply.F⨉I_A⁻¹S, imply.F⨉I_A⁻¹, imply.S)
-    mul!(parent(imply.Σ), imply.F⨉I_A⁻¹S, imply.F⨉I_A⁻¹')
+    X_A_Xt!(parent(imply.Σ), imply.S, imply.F⨉I_A⁻¹, X_A_buf = imply.F⨉I_A⁻¹S)
 
     if MeanStructure(imply) === HasMeanStructure
         mul!(imply.μ, imply.F⨉I_A⁻¹, imply.M)
