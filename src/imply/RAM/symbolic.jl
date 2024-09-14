@@ -203,13 +203,13 @@ function RAMSymbolic(spec::SemSpecification;
     return RAMSymbolic{MS, typeof(ram_matrices), T,
         typeof(Σ_eval!), typeof(∇Σ_eval!), typeof(∇²Σ_eval!),
         typeof(μ_eval!), typeof(∇μ_eval!),
-        typeof(Σ), typeof(Symmetric(Σ_chol.factors)), typeof(Σ_chol.factors), typeof(Σ_chol),
+        typeof(Σ), typeof(Σ), typeof(parent(Σ)), typeof(Σ_chol),
         typeof(∇Σ), typeof(μ), typeof(∇μ)
     }(
         ram_matrices,
         Σ_eval!, ∇Σ_eval!, ∇²Σ_eval!,
         μ_eval!, ∇μ_eval!,
-        Σ, Σ_chol.factors, nothing, nothing, nothing, nothing,
+        Σ, copy(parent(Σ)), nothing, nothing, nothing, nothing,
         ∇Σ,
         μ,
         ∇μ,

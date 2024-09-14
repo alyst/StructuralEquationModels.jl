@@ -147,7 +147,7 @@ function RAM(spec::SemSpecification;
 
     return RAM{MS, typeof(ram_matrices), T,
                typeof(A_pre), typeof(F⨉I_A⁻¹), typeof(S_pre), typeof(F),
-               typeof(Σ), typeof(Symmetric(Σ_chol.factors)), typeof(Σ_chol.factors), typeof(Σ_chol),
+               typeof(Σ), typeof(Σ), typeof(parent(Σ)), typeof(Σ_chol),
                typeof(M_pre), typeof(∇A), typeof(∇M)}(
         ram_matrices,
         A_pre,
@@ -158,7 +158,7 @@ function RAM(spec::SemSpecification;
         F⨉I_A⁻¹, F⨉I_A⁻¹S,
         I_A, similar(I_A),
 
-        Σ, Σ_chol.factors, nothing, nothing, nothing, nothing,
+        Σ, copy(parent(Σ)), nothing, nothing, nothing, nothing,
 
         ∇A,
         ∇S,
