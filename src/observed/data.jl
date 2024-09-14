@@ -101,3 +101,20 @@ function source_to_dest_perm(src::AbstractVector, dest::AbstractVector;
         return [src_inds[el] for el in dest]
     end
 end
+
+"""
+    reorder_observed_vars!(observed::SemObservedData, new_order::AbstractVector{Symbol})
+
+Reorder the observed variables in the `observed` data object to match the `new_order`.
+"""
+function reorder_observed_vars!(observed::SemObservedData, new_order::AbstractVector{Symbol})
+    src2dest = source_to_dest_perm(observed.observed_vars, new_order,
+                                   one_to_one=true, entities="observed variables")
+    copy!(observed.observed_vars, new_order)
+    copy!(observed.obs_cov, observed.obs_cov[src2dest, src2dest])
+    copy!(observed.obs_mean, observed.obs_mean[src2dest])
+    if !isnothing(observed.data)
+        copy!(observed.data, observed.data[:, src2dest])
+    end
+    return observed
+end
