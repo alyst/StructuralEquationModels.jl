@@ -30,6 +30,7 @@ function em_mvn(
     rtol_em::Number = 1e-4,
     max_nobs_em::Union{Integer, Nothing} = nothing,
     verbose::Bool = false,
+    min_eigval::Union{Number, Nothing} = nothing,
     kwargs...)
 
     n_man = SEM.n_man(patterns[1])
@@ -62,7 +63,7 @@ function em_mvn(
     progress = Progress(max_iter_em, dt=1.0, showspeed=true, desc="EM inference of MVN(μ, Σ)")
     while !converged && (iter < max_iter_em)
         em_step!(Σ, μ, Σ_prev, μ_prev, patterns,
-                 𝔼xxᵀ_full, 𝔼x_full, nobs_full; max_nobs_em)
+                 𝔼xxᵀ_full, 𝔼x_full, nobs_full; max_nobs_em, min_eigval)
 
         if iter > 0
             Δμ = norm(μ - μ_prev)
@@ -100,7 +101,8 @@ function em_step!(Σ::AbstractMatrix, μ::AbstractVector,
                   Σ₀::AbstractMatrix, μ₀::AbstractVector,
                   patterns::AbstractVector{<:SemObservedMissingPattern},
                   𝔼xxᵀ_full::AbstractMatrix, 𝔼x_full::AbstractVector, nobs_full::Integer;
-                  max_nobs_em::Union{Integer, Nothing} = nothing
+                  max_nobs_em::Union{Integer, Nothing} = nothing,
+                  min_eigval::Union{Number, Nothing} = nothing
 )
     # E step, update 𝔼x and 𝔼xxᵀ
     copy!(μ, 𝔼x_full)
@@ -180,6 +182,7 @@ function em_step!(Σ::AbstractMatrix, μ::AbstractVector,
     mul!(Σ, μ, μ', -1, 1)
     μ .+= μ₀
 
+    isnothing(min_eigval) || copyto!(Σ, trunc_eigvals(Σ, min_eigval))
     # ridge Σ
     # while !isposdef(Σ)
     #     Σ += 0.5I
