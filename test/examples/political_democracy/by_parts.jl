@@ -8,6 +8,8 @@ semoptimizer = SemOptimizer(engine = opt_engine)
 
 model_ml = Sem(SemML(observed, RAM(spec)))
 
+model_ml_sp = Sem(SemML(observed, RAMLargeSparse(spec)))
+
 model_ls_sym = Sem(SemWLS(observed, RAMSymbolic(spec, vech = true)))
 
 model_ml_sym = Sem(SemML(observed, RAMSymbolic(spec)))
@@ -24,6 +26,7 @@ model_ml_weighted = Sem(SemML(observed, RAM(spec)) => n_obs(observed))
 
 models = Dict(
     "ml" => model_ml,
+    "ml_sp" => model_ml_sp,
     "ls_sym" => model_ls_sym,
     "ml_ridge" => model_ml_ridge,
     "ml_const" => model_ml_const,
@@ -39,7 +42,7 @@ end
 ### test solution
 ############################################################################################
 
-@testset "$(id)_solution" for id in ["ml", "ls_sym", "ml_sym", "ml_const"]
+@testset "$(id)_solution" for id in ["ml", "ml_sp", "ls_sym", "ml_sym", "ml_const"]
     model = models[id]
     solution = sem_fit(semoptimizer, model)
     sol_name = Symbol("parameter_estimates_", replace(id, r"_.+$" => ""))
@@ -75,7 +78,7 @@ end
 ### test fit assessment
 ############################################################################################
 
-@testset "fitmeasures/se_$id" for id in ["ml", "ls_sym"]
+@testset "fitmeasures/se_$id" for id in ["ml", "ml_sp", "ls_sym"]
     model = models[id]
     sol = sem_fit(semoptimizer, model)
     model_type = replace(id, r"_.+$" => "")
@@ -148,6 +151,10 @@ model_ml = Sem(
     SemML(SemObservedData(dat), RAM(spec_mean))
 )
 
+model_ml_sp = Sem(
+    SemML(SemObservedData(dat), RAMLargeSparse(spec_mean))
+)
+
 model_ml_cov = Sem(
     SemML(SemObservedCovariance(cov(Matrix(dat)), vec(mean(Matrix(dat), dims = 1)),
                                 obs_colnames = names(dat),
@@ -164,6 +171,7 @@ model_ml_sym = Sem(
 ############################################################################################
 
 models = Dict("ml" => model_ml,
+              "ml_sp" => model_ml_sp,
               "ls_sym" => model_ls,
               "ml_sym" => model_ml_sym)
 
@@ -186,7 +194,7 @@ end
 ### test fit assessment
 ############################################################################################
 
-@testset "fitmeasures/se_$(id)_mean" for id in ["ml", "ls_sym"]
+@testset "fitmeasures/se_$(id)_mean" for id in ["ml", "ml_sp", "ls_sym"]
     model = models[id]
     sol = sem_fit(semoptimizer, model)
     model_type = replace(id, r"_.+$" => "")

@@ -1,8 +1,15 @@
-using LinearAlgebra: norm
+using LinearAlgebra: norm, istriu, istril
 
 function is_extended_tests()
     return lowercase(get(ENV, "JULIA_EXTENDED_TESTS", "false")) == "true"
 end
+
+function istri(spec::RAMMatrices)
+    A = materialize(spec.A, rand(Float64, nparams(spec)))
+    return istriu(A) || istril(A)
+end
+
+istri(spec::SemSpecification) = istri(convert(RAMMatrices, spec))
 
 function test_gradient(model, parameters; rtol = 1e-10, atol = 0)
     @test nparams(model) == length(parameters)
@@ -16,7 +23,9 @@ function test_gradient(model, parameters; rtol = 1e-10, atol = 0)
 
     @test gradient_G == gradient_FG
 
-    #@info "G norm = $(norm(gradient_G - true_grad, Inf))"
+    if !isapprox(gradient_G, true_grad; rtol = rtol, atol = atol)
+        @info "G norm = $(norm(gradient_G - true_grad, Inf))"
+    end
     @test gradient_G ≈ true_grad rtol = rtol atol = atol
 end
 

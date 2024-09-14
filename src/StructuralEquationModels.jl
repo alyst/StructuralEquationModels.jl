@@ -46,6 +46,7 @@ include("frontend/specification/documentation.jl")
 include("imply/abstract.jl")
 include("imply/RAM/symbolic.jl")
 include("imply/RAM/generic.jl")
+include("imply/RAM/largesparse.jl")
 include("imply/empty.jl")
 # loss
 include("loss/ML/abstract.jl")
@@ -99,7 +100,7 @@ export  ParamsArray, ParamsMatrix, ParamsVector,
         MeanStructure, NoMeanStructure, HasMeanStructure,
         HessianEvaluation, ExactHessian, ApproximateHessian,
         SemImply,
-            RAMSymbolic, RAMSymbolicZ, RAM, ImplyEmpty, imply,
+            RAMSymbolic, RAMSymbolicZ, RAM, RAMLargeSparse, ImplyEmpty, imply,
         start_val,
             start_fabin3, start_simple, start_parameter_table,
         AbstractLoss,

@@ -7,9 +7,10 @@ using NLopt
 
 semoptimizer = SemOptimizer(engine = opt_engine)
 
-model_ml = Sem(
-    SemML(SemObservedData(dat), RAM(spec))
-)
+observed = SemObservedData(dat)
+
+model_ml = Sem(SemML(observed, RAM(spec)))
+
 @test SEM.params(model_ml) == SEM.params(spec)
 @test SEM.nloss_terms(model_ml) == 1
 @test SEM.sem_terms(model_ml) isa Tuple{SEM.LossTerm{<:SemML, Nothing, Nothing}}
@@ -21,28 +22,26 @@ model_ml_cov = Sem(
           RAM(spec))
 )
 
-model_ls_sym = Sem(
-    SemWLS(SemObservedData(dat), RAMSymbolic(spec, vech=true))
-)
+model_ml_sp = istri(spec) ? Sem(SemML(observed, RAMLargeSparse(spec))) : nothing
 
-model_ml_sym = Sem(
-    SemML(SemObservedData(dat), RAMSymbolic(spec))
-)
+model_ls_sym = Sem(SemWLS(observed, RAMSymbolic(spec, vech=true)))
+
+model_ml_sym = Sem(SemML(observed, RAMSymbolic(spec)))
 
 model_ml_ridge = Sem(
-    SemML(SemObservedData(dat), RAM(spec)),
+    SemML(observed, RAM(spec)),
     SemRidge(spec, 16:20) => .001
 )
 
 @test SEM.nloss_terms(model_ml_ridge) == 2
 
 model_ml_const = Sem(
-    SemML(SemObservedData(dat), RAM(spec)),
+    SemML(observed, RAM(spec)),
     SemConstant(3.465)
 )
 
 model_ml_weighted = Sem(
-    SemML(SemObservedData(dat), RAM(partable)) => size(dat, 1)
+    SemML(observed, RAM(partable)) => size(dat, 1)
 )
 
 ############################################################################################
@@ -52,12 +51,14 @@ model_ml_weighted = Sem(
 models = Dict(
     "ml" => model_ml,
     "ml_cov" => model_ml_cov,
+    "ml_sp" => model_ml_sp,
     "ls_sym" => model_ls_sym,
     "ridge" => model_ml_ridge,
     "ml_const" => model_ml_const,
     "ml_sym" => model_ml_sym,
     "ml_weighted" => model_ml_weighted
 )
+filter!(kv -> !isnothing(kv[2]), models)
 
 @testset "$(id)_gradient" for (id, model) in pairs(models)
     test_gradient(model, start_test; rtol = 1e-9)
@@ -67,7 +68,7 @@ end
 ### test solution
 ############################################################################################
 
-@testset "$(id)_solution" for id in ["ml", "ml_cov", "ls_sym", "ml_sym", "ml_const"]
+@testset "$(id)_solution" for id in filter!(Base.Fix1(haskey, models), ["ml", "ml_cov", "ml_sp", "ls_sym", "ml_sym", "ml_const"])
     model = models[id]
     solution = sem_fit(semoptimizer, model)
     sol_name = Symbol("parameter_estimates_", replace(id, r"_.+$" => ""))
@@ -103,7 +104,7 @@ end
 ### test fit assessment
 ############################################################################################
 
-@testset "fitmeasures/se_$id" for id in ["ml", "ls_sym"]
+@testset "fitmeasures/se_$id" for id in filter!(Base.Fix1(haskey, models), ["ml", "ml_sp", "ls_sym"])
     model = models[id]
     sol = sem_fit(semoptimizer, model)
     model_type = replace(id, r"_.+$" => "")
@@ -169,13 +170,11 @@ end
 ############################################################################################
 
 # models
-model_ls = Sem(
-    SemWLS(SemObservedData(dat), RAMSymbolic(spec_mean, vech=true))
-)
+model_ls = Sem(SemWLS(SemObservedData(dat), RAMSymbolic(spec_mean, vech=true)))
 
-model_ml = Sem(
-    SemML(SemObservedData(dat), RAM(spec_mean))
-)
+model_ml = Sem(SemML(SemObservedData(dat), RAM(spec_mean)))
+
+model_ml_sp = istri(spec_mean) ? Sem(SemML(SemObservedData(dat), RAMLargeSparse(spec_mean))) : nothing
 
 model_ml_cov = Sem(
     SemML(SemObservedCovariance(cov(Matrix(dat)), vec(mean(Matrix(dat), dims = 1)),
@@ -194,8 +193,10 @@ model_ml_sym = Sem(
 
 models = Dict("ml" => model_ml,
               "ml_cov" => model_ml_cov,
+              "ml_sp" => model_ml_sp,
               "ls_sym" => model_ls,
               "ml_sym" => model_ml_sym)
+filter!(kv -> !isnothing(kv[2]), models)
 
 @testset "$(id)_gradient_mean" for (id, model) in pairs(models)
     test_gradient(model, start_test_mean; rtol = 1e-9)
@@ -216,7 +217,7 @@ end
 ### test fit assessment
 ############################################################################################
 
-@testset "fitmeasures/se_$(id)_mean" for id in ["ml", "ls_sym"]
+@testset "fitmeasures/se_$(id)_mean" for id in filter!(Base.Fix1(haskey, models), ["ml", "ml_sp", "ls_sym"])
     model = models[id]
     sol = sem_fit(semoptimizer, model)
     model_type = replace(id, r"_.+$" => "")
