@@ -1,6 +1,10 @@
 _unwrap_symmetric(res::AbstractMatrix) = res
 _unwrap_symmetric(res::Symmetric) = parent(res)
 
+# internal wrapper for mul!() that can disable some checks for performance reasons
+# (i.e. the resulting nz pattern for sparse matrix multiplication -- see SEMMKLSparseExt)
+unsafe_mul!(C, A, B, alpha, beta) = mul!(C, A, B, alpha, beta)
+unsafe_mul!(C, A, B) = mul!(C, A, B)
 
 # calculate Xᵀ⋅X
 Xt_X!(res::AbstractMatrix, X::AbstractMatrix,
