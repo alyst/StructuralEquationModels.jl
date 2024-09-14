@@ -90,3 +90,23 @@ n_man(observed::SemObservedMissing) = length(observed.observed_vars)
 
 obs_cov(observed::SemObservedMissing) = observed.obs_cov
 obs_mean(observed::SemObservedMissing) = observed.obs_mean
+
+"""
+    reorder_observed_vars!(observed::SemObservedData, new_order::AbstractVector{Symbol})
+
+Reorder the observed variables in the `observed` data object to match the `new_order`.
+"""
+function reorder_observed_vars!(observed::SemObservedMissing, new_order::AbstractVector{Symbol})
+    src2dest = source_to_dest_perm(observed.observed_vars, new_order,
+                                   one_to_one=true, entities="observed variables")
+    copy!(observed.observed_vars, new_order)
+    copy!(observed.obs_cov, observed.obs_cov[src2dest, src2dest])
+    copy!(observed.obs_mean, observed.obs_mean[src2dest])
+    if !isnothing(observed.data)
+        copy!(observed.data, observed.data[:, src2dest])
+    end
+    for pattern in observed.patterns
+        reorder_observed_vars!(pattern, src2dest)
+    end
+    return observed
+end

@@ -24,7 +24,7 @@ function SemObservedMissingPattern(
         @assert size(pat_cov) == (size(pat_data, 2), size(pat_data, 2))
     else
         pat_mean = reshape(pat_data[1, :], 1, :)
-        pat_cov = fill(zero(T), 1, 1)
+        pat_cov = fill(zero(T), length(pat_mean), length(pat_mean))
     end
 
     miss_mask = .!obs_mask
@@ -41,3 +41,15 @@ n_obs(pat::SemObservedMissingPattern) = length(pat.rows)
 
 nobserved_vars(pat::SemObservedMissingPattern) = pat.nobserved
 nmissed_vars(pat::SemObservedMissingPattern) = pat.nmissed
+
+function reorder_observed_vars!(pat::SemObservedMissingPattern, source_to_dest::AbstractVector{<:Integer})
+    obs_dest = sort!(unique!(source_to_dest[pat.obs_mask])) # indices of observed vars after reordering
+    obs_src2dest = [searchsortedfirst(obs_dest, dest)
+                    for (src, dest) in enumerate(source_to_dest) if pat.obs_mask[src]]
+    @show size(obs_src2dest) size(pat.obs_cov) size(pat.obs_mean)
+    copy!(pat.obs_mask, pat.obs_mask[source_to_dest])
+    copy!(pat.miss_mask, pat.miss_mask[source_to_dest])
+    copy!(pat.data, pat.data[obs_src2dest, :])
+    copy!(pat.obs_mean, pat.obs_mean[obs_src2dest])
+    copy!(parent(pat.obs_cov), pat.obs_cov[obs_src2dest, obs_src2dest])
+end
