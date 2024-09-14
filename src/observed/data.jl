@@ -87,11 +87,16 @@ obs_mean(observed::SemObservedData) = observed.obs_mean
 ### Additional functions
 ############################################################################################
 
-# permutation that subsets and reorders source to matches the destination order ------------
-function source_to_dest_perm(src::AbstractVector, dest::AbstractVector)
+# permutation that subsets and reorders the source to match the destination order ----------
+function source_to_dest_perm(src::AbstractVector, dest::AbstractVector;
+                             one_to_one::Bool = false,
+                             entities::String = "elements")
     if dest == src # exact match
         return eachindex(dest)
     else
+        one_to_one && length(dest) != length(src) &&
+            throw(DimensionMismatch("The length of the new $entities order ($(length(dest))) " *
+                                    "does not match the number of $entities ($(length(src)))"))
         src_inds = Dict(el => i for (i, el) in enumerate(src))
         return [src_inds[el] for el in dest]
     end
