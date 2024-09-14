@@ -200,3 +200,23 @@ function nonunique(values::AbstractVector)
     end
     return res
 end
+
+# truncate eigenvalues of a symmetric matrix and return the result
+function trunc_eigvals(mtx::AbstractMatrix{T}, min_eigval::Number;
+                       mtx_label::AbstractString = "matrix",
+                       verbose::Bool = false
+) where T
+    # eigen decomposition of the mtx
+    mtx_eig = eigen(convert(Matrix{T}, mtx))
+    verbose && @info "min(eigvals($mtx_label))=$(Base.minimum(mtx_eig.values)), N(eigvals < $min_eigval) = $(sum(<(min_eigval), mtx_eig.values))"
+
+    # substitute small eigvals with min_eigval
+    newmtx = X_A_Xt(Diagonal(max.(mtx_eig.values, min_eigval)), mtx_eig.vectors)
+    StatsBase._symmetrize!(newmtx)
+    if verbose
+        Δmtx = newmtx .- mtx
+        @info "Δ($mtx_label, posdef)=$(norm(Δmtx, 2)), min,max(Δᵢ)=$(extrema(Δmtx))"
+    end
+
+    return newmtx
+end
