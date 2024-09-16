@@ -56,7 +56,11 @@ end
 function X_A_Xt!(res::AbstractMatrix, A::Symmetric{<:Any, M}, X::AbstractMatrix,
                  alpha::Real = 1, beta::Real = 0;
                  X_A_buf::Union{AbstractMatrix, Nothing} = nothing) where {M <: StridedMatrix}
-    A_Xt = !isnothing(X_A_buf) ? mul!(reshape(X_A_buf, size(X, 2), size(X, 1)), A, X') : A * X'
+    # FIXME in principle no need to unwrap A, but with symmetric A and transposed X
+    # julia's generic_matmatmul() falls back into non-BLAS implementation (looks like Julia's bug)
+    A_Xt = !isnothing(X_A_buf) ?
+        mul!(reshape(X_A_buf, size(X, 2), size(X, 1)), _unwrap_symmetric(A), X') :
+        _unwrap_symmetric(A) * X'
     return mul!(_unwrap_symmetric(res), X, A_Xt, alpha, beta)
 end
 
