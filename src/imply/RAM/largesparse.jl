@@ -125,6 +125,11 @@ mutable struct RAMLargeSparse{MS, SPEC, T, PM_S, F_I_Aoo, F_I_All, F_I_Aol, F_I_
     _Σ⁻¹lo_buf2::M_Σ
     _Σ⁻¹ll_buf::M_Σ
     _Σ⁻¹::Union{Symmetric{T, M_Σ}, Nothing}
+
+    # counters
+    n_sparse::Int
+    n_sparse_failed::Int
+    n_slow::Int
 end
 
 ############################################################################################
@@ -299,7 +304,8 @@ function RAMLargeSparse(spec::SemSpecification;
         zeros(T, nobs, nobs),
         zeros(T, nlat, nobs), zeros(T, nlat, nobs),
         zeros(T, nlat, nlat),
-        nothing
+        nothing,
+        0, 0 ,0
     )
 end
 
@@ -447,12 +453,14 @@ function update_Σ⁻¹!(implied::RAMLargeSparse)
     isnothing(implied._logdet_Σ) || return nothing # skip if already updated
     update_S_chol!(implied)
     if isposdef_S(implied) # "sparse" (faster?) path
+        implied.n_sparse += 1
         update_Σ⁻¹_sparse!(implied)
         # update_Σ⁻¹_sparse!() may return without updating Σ⁻¹ if discovered numerical issues
         isnothing(implied._logdet_Σ) && (implied.n_sparse_failed += 1)
     end
     if isnothing(implied._logdet_Σ)
         if (isposdef_S(implied) || implied.allow_indef_S) && isposdef_Σ(implied) # "dense" (slow) path
+            implied.n_slow += 1
             update_Σ_chol!(implied)
             implied._logdet_Σ = logdet(implied._Σ_chol)
             implied._Σ⁻¹ = Symmetric(LinearAlgebra.inv!(implied._Σ_chol))
