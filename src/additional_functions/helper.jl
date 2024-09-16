@@ -220,3 +220,68 @@ function trunc_eigvals(mtx::AbstractMatrix{T}, min_eigval::Number;
 
     return newmtx
 end
+
+function index_in_sorted(v::Union{AbstractVector, Colon}, x)
+    (v isa Colon) && return x
+    i = searchsortedfirst(v, x)
+    return i <= lastindex(v) && v[i] == x ? i : nothing
+end
+
+function check_subaxis(arr::AbstractArray, subarr::AbstractArray, axis::Integer, subinds::Union{AbstractVector, Colon})
+    if isa(subinds, Colon)
+        size(arr, axis) == size(subarr, axis) ||
+            throw(DimensionMismatch("submtx $(axis == 1 ? "rows" : "columns") ($(size(subarr, axis))) does not match the matrix $(axis == 1 ? "rows" : "columns") ($(size(arr, axis)))"))
+    else
+        length(subinds) == size(subarr, axis) ||
+            throw(DimensionMismatch("submtx $(axis == 1 ? "rows" : "columns") ($(size(subarr, axis))) does not match the subindices length ($(length(subinds)))"))
+        issorted(subinds) || throw(ArgumentError("subindices must be sorted"))
+    end
+end
+
+# create the mapping between the indices of the nonzero values of the sparse submatrix
+# and the indices of the nonzero values of the full matrix
+# return the vector of nzval indices of mtx that correspond to the submtx.nzval
+function nzsubmatrix_to_nzmatrix(mtx::SparseMatrixCSC, submtx::SparseMatrixCSC,
+                                 rowinds::Union{AbstractVector, Colon},
+                                 colinds::Union{AbstractVector, Colon}
+)
+    check_subaxis(mtx, submtx, 1, rowinds)
+    check_subaxis(mtx, submtx, 2, colinds)
+
+    inds = Vector{Int}()
+    nzrows, nzcols, _ = findnz(mtx)
+    for (nzind, (i, j)) in enumerate(zip(nzrows, nzcols))
+        if !isnothing(index_in_sorted(rowinds, i)) &&
+           !isnothing(index_in_sorted(colinds, j))
+            push!(inds, nzind)
+        end
+    end
+    length(inds) != nnz(submtx) &&
+        throw(ArgumentError("Non-zeros count in submatrix ($(nnz(submtx))) does not match the nonzeros in the full matrix subset ($(length(inds)))"))
+    return inds
+end
+
+# return the tuple of linear indices of the dense submtx
+# and the correspondingg indices of mtx.nzval entries
+function nzsubmatrix_to_nzmatrix(mtx::SparseMatrixCSC, submtx::StridedMatrix,
+                                 rowinds::Union{AbstractVector, Colon},
+                                 colinds::Union{AbstractVector, Colon}
+)
+    check_subaxis(mtx, submtx, 1, rowinds)
+    check_subaxis(mtx, submtx, 2, colinds)
+
+    sub_lininds = LinearIndices(submtx)
+    nzrows, nzcols, _ = findnz(mtx)
+    srcinds = Vector{Int}()
+    destinds = Vector{Int}()
+
+    for (nzind, (i, j)) in enumerate(zip(nzrows, nzcols))
+        subi = index_in_sorted(rowinds, i)
+        isnothing(subi) && continue
+        subj = index_in_sorted(colinds, j)
+        isnothing(subj) && continue
+        push!(srcinds, sub_lininds[subi, subj])
+        push!(destinds, nzind)
+    end
+    return srcinds, destinds
+end
