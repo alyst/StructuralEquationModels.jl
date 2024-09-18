@@ -110,7 +110,6 @@ mutable struct RAMLargeSparse{MS, SPEC, T, PM_S, F_I_Aoo, F_I_All, F_I_Aol, F_I_
     Sll_shift::T
     Sll::Symmetric{T, M_Sll}
     _Sll_chol::CHOL_Sll
-    allow_indef_S::Bool
     _isposdef_S::Union{Bool, Nothing}
     _isposdef_Σ::Union{Bool, Nothing}
 
@@ -125,6 +124,10 @@ mutable struct RAMLargeSparse{MS, SPEC, T, PM_S, F_I_Aoo, F_I_All, F_I_Aol, F_I_
     _Σ⁻¹lo_buf2::M_Σ
     _Σ⁻¹ll_buf::M_Σ
     _Σ⁻¹::Union{Symmetric{T, M_Σ}, Nothing}
+
+    # options
+    allow_indef_S::Bool
+    try_fast_Σ::Bool
 
     # counters of Σ calculation roots taken
     n_fast::Int
@@ -144,7 +147,8 @@ function RAMLargeSparse(spec::SemSpecification;
     verbose::Bool = false,
     Sll_shift::Number = 0.0,
     Soo_shift::Number = Sll_shift,
-    allow_indef_S::Bool = true
+    allow_indef_S::Bool = true,
+    try_fast_Σ::Bool = true,
 )
     ram = convert(RAMMatrices, spec)
     # sorting is required if one wants to omit F
@@ -299,12 +303,13 @@ function RAMLargeSparse(spec::SemSpecification;
         ∇A, ∇S, ∇M,
         Soo_shift, Soo_pre, Soo_chol,
         Sll_shift, Sll_pre, Sll_chol,
-        allow_indef_S, nothing, nothing,
+        nothing, nothing,
         Σ_pre, nothing, nothing, nothing,
         zeros(T, nobs, nobs),
         zeros(T, nlat, nobs), zeros(T, nlat, nobs),
         zeros(T, nlat, nlat),
         nothing,
+        allow_indef_S, try_fast_Σ,
         0, 0 ,0
     )
 end
@@ -452,7 +457,7 @@ end
 function update_Σ⁻¹!(implied::RAMLargeSparse)
     isnothing(implied._logdet_Σ) || return nothing # skip if already updated
     update_S_chol!(implied)
-    if isposdef_S(implied) # "sparse" (faster?) path
+    if implied.try_fast_Σ && isposdef_S(implied) # "sparse" (faster?) path
         implied.n_fast += 1
         update_Σ⁻¹_sparse!(implied)
         # update_Σ⁻¹_sparse!() may return without updating Σ⁻¹ if discovered numerical issues
