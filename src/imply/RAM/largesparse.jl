@@ -64,40 +64,56 @@ and for models with a meanstructure, the model implied means are computed as
     \mu = F(I-A)^{-1}M
 ```
 """
-mutable struct RAMLargeSparse{MS, SPEC, T, PM_S, F_I_Aoo, F_I_All, F_I_Aol, F_I_A⁻¹o, F_I_A⁻¹l,
-                              M_F, M_A, M_I_Aoo, M_I_Aol, M_I_All, M_I_A⁻¹, M_I_A⁻¹o, M_I_A⁻¹l,
-                              M_S, M_Sll, M_Σ, GM, V_M, GM_M, CHOL_Soo, CHOL_Sll} <: SemImply{MS,ExactHessian}
+mutable struct RAMLargeSparse{MS, SPEC, T, PM_S, PM_I_Aoo, PM_I_All,
+                              F_I_A⁻¹oo, F_I_A⁻¹ll,
+                              M_I_Aoo, M_I_All, M_Aol,
+                              M_I_A⁻¹oo, M_I_A⁻¹ll, M_I_A⁻¹, M_FI_A, M_I_AooxS,
+                              M_S, M_Σ, V_M, GM, GM_M, CHOL_Soo, CHOL_Sll} <: SemImply{MS,ExactHessian}
     ram::SPEC
-    # parameterized Soo and Sll matrices
+    # parameterized S: [o,o] and [l,l] submatrices
     Soo_parr::PM_S
     Sll_parr::PM_S
 
-    I_Aoo_eval!::F_I_Aoo
-    I_All_eval!::F_I_All
-    I_Aol_eval!::F_I_Aol
-    I_A⁻¹o_eval!::F_I_A⁻¹o
-    I_A⁻¹l_eval!::F_I_A⁻¹l
+    # parameterized I+A [o,o], [l,l] and [o,l] submatrices
+    I_Aoo_parr::PM_I_Aoo # nothing if no observed-observed regression
+    I_All_parr::PM_I_All # nothing if no latent-latent regression
+    I_Aol_parr::PM_S
 
-    F::M_F
-    M::V_M
+    # parameterized I+A [o,l] submatrix
+    Aol_parr::PM_S
 
-    I_Aoo::M_I_Aoo
-    I_Aol::M_I_Aol
-    I_All::M_I_All
+    # (I-A)⁻¹[o,o] and (I-A)⁻¹[l,l]⁻¹ evaluators
+    I_A⁻¹oo_eval!::F_I_A⁻¹oo
+    I_A⁻¹ll_eval!::F_I_A⁻¹ll
 
-    I_A⁻¹o::M_I_A⁻¹o
-    I_A⁻¹l::M_I_A⁻¹l
-    I_A⁻¹::M_I_Aoo
-    I_A⁻¹o_to_I_A⁻¹_destinds::Vector{Int}
-    I_A⁻¹l_to_I_A⁻¹::@NamedTuple{srcinds::Vector{Int}, destinds::Vector{Int}}
+    # preallocated I-A submatrices
+    I_Aoo::M_I_Aoo # I if no observed-observed regression
+    I_All::M_I_All # I if no latent-latent regression
+    I_Aol::M_Aol
 
-    F⨉I_A⁻¹o::M_I_A⁻¹o
-    F⨉I_A⁻¹l::M_I_A⁻¹l
-    F⨉I_A⁻¹::M_I_Aol
-    F⨉I_A⁻¹o⨉Soo::M_I_A⁻¹o
-    F⨉I_A⁻¹l⨉Sll::M_I_A⁻¹l
+    # preallocated I+A[o,l] submatrix
+    Aol::M_Aol
+
+    # preallocated (I-A)⁻¹ submatrices
+    I_A⁻¹oo::M_I_A⁻¹oo # could be I
+    I_A⁻¹ll::M_I_A⁻¹ll # could be I
+    I_A⁻¹ol::M_Aol
+    I_A⁻¹::M_I_A⁻¹
+
+    # mappings from nonzero indices in (I-A)⁻¹ submatrices to
+    # nonzero indices in the full (I-A)⁻¹
+    I_A⁻¹oo_to_I_A⁻¹_destinds::Union{Vector{Int}, Nothing}
+    I_A⁻¹ll_to_I_A⁻¹::Union{@NamedTuple{srcinds::Vector{Int}, destinds::Vector{Int}}, Nothing}
+    I_A⁻¹ol_to_I_A⁻¹::@NamedTuple{srcinds::Vector{Int}, destinds::Vector{Int}}
+
+    F⨉I_A⁻¹::M_FI_A # preallocated F⨉(I-A)⁻¹
+    I_A⁻¹oo⨉Soo::M_I_AooxS
+    I_A⁻¹ol⨉Sll::M_Aol
 
     S::Symmetric{T, M_S}
+
+    # preallocated meanstructure
+    M::V_M
     μ::V_M
 
     ∇A::GM
@@ -108,7 +124,7 @@ mutable struct RAMLargeSparse{MS, SPEC, T, PM_S, F_I_Aoo, F_I_All, F_I_Aol, F_I_
     Soo::Symmetric{T, M_S}
     _Soo_chol::CHOL_Soo
     Sll_shift::T
-    Sll::Symmetric{T, M_Sll}
+    Sll::Symmetric{T, M_Σ}
     _Sll_chol::CHOL_Sll
     _isposdef_S::Union{Bool, Nothing}
     _isposdef_Σ::Union{Bool, Nothing}
@@ -159,81 +175,101 @@ function RAMLargeSparse(spec::SemSpecification;
 
     nobs = nobserved_vars(ram)
     nlat = nlatent_vars(ram)
-
     npars = nparams(ram)
-    pars = (Symbolics.@variables θ[1:npars])[1]
 
-    F = copy(ram.F)
-
-    verbose && @info "computing symbolic I - A⁻¹(θ)"
     T = Float64
-    A_sym = sparse_materialize(Num, ram.A, pars)
+    randpars = randn(T, npars)
+
+    sympars = (Symbolics.@variables θ[1:npars])[1]
+    A_sym = sparse_materialize(Num, ram.A, sympars)
+    A_par = materialize(Union{T, Symbol}, ram.A, params(ram))
     if istriu(A_sym)
         M_A = UpperTriangular
         M_I_A = UnitUpperTriangular
-    elseif istril(A_sym)
+    elseif istril(A_par)
         M_A = LowerTriangular
         M_I_A = UnitLowerTriangular
     else
         error("RAMLargeSparse requires that A(θ) is upper or lower triangular")
     end
     verbose && @info "A matrix is $M_A"
-    I_A = UniformScaling(one(T)) - A_sym
+    # I - A(θ) parametric array, in evaluate!() it is instantiated with -θ to get I - A(θ)
+    I_A_par = copy(A_par)
+    @inbounds for (i, v) in enumerate(I_A_par)
+        isa(v, Number) && (v != 0) && (I_A_par[i] = -v)
+    end
+    @inbounds for i in diagind(I_A_par)
+        @assert iszero(I_A_par[i])
+        I_A_par[i] = one(T)
+    end
 
+    I_Aoo_par = I_A_par[observed_var_indices(ram), observed_var_indices(ram)]
+    if any(v -> isa(v, Symbol), I_Aoo_par)
+        I_Aoo_parr = ParamsArray{T}(I_Aoo_par, params(ram))
+        I_Aoo_pre = M_I_A(sparse_materialize(I_Aoo_parr, randpars))
+        @assert M_I_A == UnitLowerTriangular && istril(I_Aoo_pre) || M_I_A == UnitUpperTriangular && istriu(I_Aoo_pre)
+    else
+        verbose && @info "No observed-observed regression detected, I - A[o,o] = I"
+        I_Aoo_parr = nothing
+        I_Aoo_pre = spdiagm(nobs, nobs, fill(one(T), nobs)) # I does not work with ldiv!(X, cholmod, I)
+    end
+
+    I_All_par = I_A_par[latent_var_indices(ram), latent_var_indices(ram)]
+    if any(v -> isa(v, Symbol), I_All_par)
+        I_All_parr = ParamsArray{T}(I_All_par, params(ram))
+        I_All_pre = M_I_A(materialize(I_All_parr, randpars))
+        @assert M_I_A == UnitLowerTriangular && istril(I_All_pre) || M_I_A == UnitUpperTriangular && istriu(I_All_pre)
+    else
+        verbose && @info "No latent-latent regression detected, I - A[l,l] = I"
+        I_All_parr = nothing
+        I_All_pre = I
+    end
+
+    Aol_parr = ParamsArray{T}(A_par[observed_var_indices(ram), latent_var_indices(ram)], params(ram))
+    Aol_pre = materialize(Aol_parr, randpars)
+    I_Aol_parr = ParamsArray{T}(I_A_par[observed_var_indices(ram), latent_var_indices(ram)], params(ram))
+    I_Aol_pre = materialize(Aol_parr, randpars)
+
+    verbose && @info "computing symbolic (I - A)⁻¹(θ)"
     I_A⁻¹_sym = neumann_series(A_sym; Aⁿ_rewriter, maxn = something(max_An, size(A_sym, 1)))
     @assert M_I_A == UnitUpperTriangular && istriu(I_A⁻¹_sym) || M_I_A == UnitLowerTriangular && istril(I_A⁻¹_sym)
     if simplify
-        verbose && @info "simplifying I - A⁻¹(θ)"
+        verbose && @info "  simplifying (I - A)⁻¹(θ)"
         # I_A⁻¹_sym = Symbolics.simplify.(I_A⁻¹_sym)
         Threads.@threads for i in eachindex(I_A⁻¹_sym.nzval)
             I_A⁻¹_sym.nzval[i] = Symbolics.simplify(I_A⁻¹_sym.nzval[i])
         end
     end
-    verbose && @info "compiling in-place I_A⁻¹(θ) = I - A(θ)⁻¹"
-    I_A⁻¹l_eval, I_A⁻¹l_eval! = Symbolics.build_function(convert(Matrix, I_A⁻¹_sym[:, latent_var_indices(ram)]), pars, expression=Val{false})
-    I_A⁻¹o_sym = I_A⁻¹_sym[:, observed_var_indices(ram)]
-    if all(el -> isa(Symbolics.value(el), Number), I_A⁻¹o_sym.nzval)
-        verbose && @info "No observed-observed regression detected, I_A⁻¹o(θ) is constant"
-        I_A⁻¹o_eval, I_A⁻¹o_eval! = nothing, nothing
-    else
-        I_A⁻¹o_eval, I_A⁻¹o_eval! = Symbolics.build_function(I_A⁻¹o_sym, pars, expression=Val{false})
+    if !isnothing(I_All_parr)
+        verbose && @info "compiling in-place I_A⁻¹ll(θ) = (I - A(θ))⁻¹[lat, lat] = (I - A(θ)[lat, lat])⁻¹"
+        _, I_A⁻¹ll_eval! = Symbolics.build_function(convert(Matrix, I_A⁻¹_sym[latent_var_indices(ram), latent_var_indices(ram)]), sympars, expression=Val{false})
+        verbose && @info "  generating initial I_A⁻¹ll(θ)..."
+        I_A⁻¹ll_pre = M_I_A(zeros(T, nlat, nlat))
+        verbose && @info "  $(nnz(parent(I_A⁻¹ll_pre))) nonzeros in I_A⁻¹[l,l]"
+        I_A⁻¹ll_eval!(I_A⁻¹ll_pre, randpars)
+        I_A⁻¹ol_pre = Aol_pre * I_A⁻¹ll_pre
+    else # no latent-latent regression
+        I_A⁻¹ll_eval! = nothing
+        I_A⁻¹ll_pre = I
+        I_A⁻¹ol_pre = Aol_pre # reuse Aol array identical
     end
 
-    I_Aoo_sym = I_A[observed_var_indices(ram), observed_var_indices(ram)]
-    if I_Aoo_sym == I
-        verbose && @info "No observed-observed regression detected, I_Aoo(θ) = I"
-        I_Aoo_eval, I_Aoo_eval! = nothing, nothing
+    if !isnothing(I_Aoo_parr)
+        verbose && @info "compiling in-place I_A⁻¹oo(θ) = (I - A(θ))⁻¹[obs, obs]"
+        I_A⁻¹oo_sym = I_A⁻¹_sym[observed_var_indices(ram), observed_var_indices(ram)]
+        I_A⁻¹oo_eval, I_A⁻¹oo_eval! = Symbolics.build_function(I_A⁻¹oo_sym, sympars, expression=Val{false})
+        verbose && @info "  generating initial I_A⁻¹o(θ)..."
+        I_A⁻¹oo_pre = M_I_A(I_A⁻¹oo_eval(randpars))
+        verbose && @info "  $(nnz(parent(I_A⁻¹oo_pre))) nonzeros in I_A⁻¹[o,o]"
     else
-        verbose && @info "compiling in-place I_Aoo(θ) = F × (I - A(θ)) × Fᵀ"
-        I_Aoo_eval, I_Aoo_eval! = Symbolics.build_function(I_Aoo_sym, pars, expression=Val{false})
+        I_A⁻¹oo_eval, I_A⁻¹oo_eval! = nothing, nothing
+        I_A⁻¹oo_pre = I
     end
-    I_All_sym = I_A[latent_var_indices(ram), latent_var_indices(ram)]
-    if I_All_sym == I
-        verbose && @info "No latent-latent regression detected, I_All(θ) = I"
-        I_All_eval, I_All_eval! = nothing, nothing
-    else
-        verbose && @info "compiling in-place I_All(θ) = L × (I - A(θ)) × Lᵀ"
-        I_All_eval, I_All_eval! = Symbolics.build_function(convert(Matrix, I_All_sym), pars, expression=Val{false})
-    end
-    verbose && @info "compiling in-place I_Aol(θ) = F × (I - A(θ)) × Lᵀ"
-    I_Aol_sym = I_A[observed_var_indices(ram), latent_var_indices(ram)]
-    I_Aol_eval, I_Aol_eval! = Symbolics.build_function(I_Aol_sym, pars, expression=Val{false})
-    #let ctxt = IOContext(stdout, :compact => false)
-    #    print("(I-Aol)="); show(ctxt, "text/plain", I_Aol_sym); println()
-    #end
 
-    randpars = randn(T, npars)
     # materialize sparse I_A submatrices
-    I_Aoo_pre = !isnothing(I_Aoo_eval) ? M_I_A(I_Aoo_eval(randpars)) : spdiagm(nobs, nobs, fill(one(T), nobs))
-    @assert M_I_A == UnitLowerTriangular && istril(I_Aoo_pre) || M_I_A == UnitUpperTriangular && istriu(I_Aoo_pre)
-    I_All_pre = !isnothing(I_All_eval) ? M_I_A(I_All_eval(randpars)) : I
-    @assert M_I_A == UnitLowerTriangular && istril(I_All_pre) || M_I_A == UnitUpperTriangular && istriu(I_All_pre)
-    I_Aol_pre = I_Aol_eval(randpars)
-    I_A⁻¹o_pre = !isnothing(I_A⁻¹o_eval) ? I_A⁻¹o_eval(randpars) :
-        SparseMatrixCSC(size(I_A⁻¹o_sym)..., I_A⁻¹o_sym.colptr, I_A⁻¹o_sym.rowval, convert(Vector{T}, Symbolics.value.(I_A⁻¹o_sym.nzval)))
-    I_A⁻¹l_pre = I_A⁻¹l_eval(randpars)
     I_A⁻¹_r, I_A⁻¹_c, _ = findnz(I_A⁻¹_sym)
-    I_A⁻¹_pre = sparse(I_A⁻¹_r, I_A⁻¹_c, randn(T, nnz(I_A⁻¹_sym)), size(I_A⁻¹_sym)...)
+    I_A⁻¹_pre = M_I_A(sparse(I_A⁻¹_r, I_A⁻¹_c, randn(T, nnz(I_A⁻¹_sym)), size(I_A⁻¹_sym)...))
+    F⨉I_A⁻¹_pre = ram.F * I_A⁻¹_pre
 
     Σ_pre = Symmetric(zeros(T, nobs, nobs))
     S_par = materialize(ram.S, params(ram))
@@ -247,14 +283,13 @@ function RAMLargeSparse(spec::SemSpecification;
     Soo_parr = ParamsArray{T}(S_par[observed_var_indices(ram), observed_var_indices(ram)], params(ram))
     Sll_parr = ParamsArray{T}(S_par[latent_var_indices(ram), latent_var_indices(ram)], params(ram))
     Soo_pre = Symmetric(sparse_materialize(Soo_parr, randpars))
-    Soo_chol = SparseArrays.CHOLMOD.@cholmod_param final_ll = true begin
+    Soo_chol = SparseArrays.CHOLMOD.@cholmod_param final_ll = false begin
         SparseArrays.CHOLMOD.analyze(SparseArrays.CHOLMOD.Sparse(Soo_pre))
     end
     Sll_pre = Symmetric(materialize(Sll_parr, randpars))
     Sll_chol = cholesky(Sll_pre, RowMaximum(); tol=1e-10, check=false)
-    F⨉I_A⁻¹o_pre = F * I_A⁻¹o_pre # not square, so cannot be triangular
-    F⨉I_A⁻¹l⨉Sll_pre = similar(parent(Σ_pre), size(I_Aol_pre)...) # A×S produces dense pattern
-    F⨉I_A⁻¹o⨉Soo_pre = F⨉I_A⁻¹o_pre * Soo_pre # A×S produces dense pattern
+
+    I_A⁻¹oo⨉Soo_pre = !isnothing(I_Aoo_parr) ? I_A⁻¹oo_pre * Soo_pre : I
 
     if gradient_required
         ∇A = sparse_gradient(ram.A)
@@ -277,29 +312,32 @@ function RAMLargeSparse(spec::SemSpecification;
         μ_pre = nothing
     end
 
-    return RAMLargeSparse{MS, typeof(ram), T, typeof(Soo_parr),
-                          typeof(I_Aoo_eval!), typeof(I_All_eval!), typeof(I_Aol_eval!),
-                          typeof(I_A⁻¹o_eval!), typeof(I_A⁻¹l_eval!),
-                          typeof(F), SparseMatrixCSC{T, Int64},
-                          typeof(I_Aoo_pre), typeof(I_Aol_pre), typeof(I_All_pre),
-                          typeof(I_A⁻¹_pre), typeof(I_A⁻¹o_pre), typeof(I_A⁻¹l_pre),
-                          typeof(parent(Soo_pre)), typeof(parent(Sll_pre)), typeof(parent(Σ_pre)),
-                          typeof(∇A),
-                          typeof(M_pre), typeof(∇M),
+    return RAMLargeSparse{MS, typeof(ram), T, typeof(Soo_parr), typeof(I_Aoo_parr), typeof(I_All_parr),
+                          typeof(I_A⁻¹oo_eval!), typeof(I_A⁻¹ll_eval!),
+                          typeof(I_Aoo_pre), typeof(I_All_pre), typeof(Aol_pre),
+                          typeof(I_A⁻¹oo_pre), typeof(I_A⁻¹ll_pre), typeof(I_A⁻¹_pre),
+                          typeof(F⨉I_A⁻¹_pre), typeof(I_A⁻¹oo⨉Soo_pre),
+                          typeof(parent(Soo_pre)), typeof(parent(Σ_pre)),
+                          typeof(M_pre),
+                          typeof(∇A), typeof(∇M),
                           typeof(Soo_chol), typeof(Sll_chol)}(
-        ram, Soo_parr, Sll_parr,
-        I_Aoo_eval!, I_All_eval!, I_Aol_eval!, I_A⁻¹o_eval!, I_A⁻¹l_eval!,
-        F, M_pre,
-        I_Aoo_pre, I_Aol_pre, I_All_pre,
-        I_A⁻¹o_pre, I_A⁻¹l_pre, M_I_A(I_A⁻¹_pre),
-        nzsubmatrix_to_nzmatrix(I_A⁻¹_pre, I_A⁻¹o_pre, :, observed_var_indices(ram)),
+        ram, Soo_parr, Sll_parr, I_Aoo_parr, I_All_parr, I_Aol_parr, Aol_parr,
+        I_A⁻¹oo_eval!, I_A⁻¹ll_eval!,
+        I_Aoo_pre, I_All_pre, I_Aol_pre, Aol_pre,
+        I_A⁻¹oo_pre, I_A⁻¹ll_pre, I_A⁻¹ol_pre, I_A⁻¹_pre,
+        !isnothing(I_A⁻¹oo_eval!) ? nzsubmatrix_to_nzmatrix(parent(I_A⁻¹_pre), parent(I_A⁻¹oo_pre),
+                                                            observed_var_indices(ram), observed_var_indices(ram)) : nothing,
+        !isnothing(I_A⁻¹ll_eval!) ? begin
+            srcinds, destinds = nzsubmatrix_to_nzmatrix(parent(I_A⁻¹_pre), parent(I_A⁻¹ll_pre),
+                                                        latent_var_indices(ram), latent_var_indices(ram))
+            (; srcinds, destinds)
+        end : nothing,
         begin
-            srcinds, destinds = nzsubmatrix_to_nzmatrix(I_A⁻¹_pre, I_A⁻¹l_pre, :, latent_var_indices(ram))
+            srcinds, destinds = nzsubmatrix_to_nzmatrix(parent(I_A⁻¹_pre), I_A⁻¹ol_pre, observed_var_indices(ram), latent_var_indices(ram))
             (; srcinds, destinds)
         end,
-        F⨉I_A⁻¹o_pre, F * I_A⁻¹l_pre, F * I_A⁻¹_pre,
-        F⨉I_A⁻¹o⨉Soo_pre, F⨉I_A⁻¹l⨉Sll_pre,
-        S_pre, μ_pre,
+        F⨉I_A⁻¹_pre, I_A⁻¹oo⨉Soo_pre, similar(Aol_pre),
+        S_pre, M_pre, μ_pre,
         ∇A, ∇S, ∇M,
         Soo_shift, Soo_pre, Soo_chol,
         Sll_shift, Sll_pre, Sll_chol,
@@ -314,8 +352,8 @@ function RAMLargeSparse(spec::SemSpecification;
     )
 end
 
-iszeroAll(implied::RAMLargeSparse) = isa(implied.I_All, UniformScaling)
-iszeroAoo(implied::RAMLargeSparse) = isa(implied.I_Aoo, UniformScaling)
+iszeroAll(implied::RAMLargeSparse) = isnothing(implied.I_All_parr)
+iszeroAoo(implied::RAMLargeSparse) = isnothing(implied.I_Aoo_parr)
 
 ############################################################################################
 ### objective, gradient, hessian
@@ -324,19 +362,26 @@ iszeroAoo(implied::RAMLargeSparse) = isa(implied.I_Aoo, UniformScaling)
 function update!(targets::EvaluationTargets, implied::RAMLargeSparse, par)
     reset_covars!(implied)
 
+    # update S
     materialize!(implied.S, implied.ram.S, par)
 
-    if !isnothing(implied.I_A⁻¹o_eval!) # only if I_A⁻¹o is not constant
-        implied.I_A⁻¹o_eval!(parent(implied.I_A⁻¹o), par)
-        @inbounds parent(implied.I_A⁻¹).nzval[implied.I_A⁻¹o_to_I_A⁻¹_destinds] .= parent(implied.I_A⁻¹o).nzval
+    # update (I - A)⁻¹
+    if !isnothing(implied.I_A⁻¹oo_eval!) # only if I_A⁻¹o is not constant
+        implied.I_A⁻¹oo_eval!(parent(implied.I_A⁻¹oo), par)
+        @inbounds parent(implied.I_A⁻¹).nzval[implied.I_A⁻¹oo_to_I_A⁻¹_destinds] .= parent(implied.I_A⁻¹oo).nzval
     end
-    implied.I_A⁻¹l_eval!(parent(implied.I_A⁻¹l), par)
-    @inbounds parent(implied.I_A⁻¹).nzval[implied.I_A⁻¹l_to_I_A⁻¹.destinds] .= parent(implied.I_A⁻¹l)[implied.I_A⁻¹l_to_I_A⁻¹.srcinds]
+    materialize!(implied.Aol, implied.Aol_parr, par)
+    if !isnothing(implied.I_A⁻¹ll_eval!)
+        implied.I_A⁻¹ll_eval!(parent(implied.I_A⁻¹ll), par)
+        @inbounds parent(implied.I_A⁻¹).nzval[implied.I_A⁻¹ll_to_I_A⁻¹.destinds] .= parent(implied.I_A⁻¹ll)[implied.I_A⁻¹ll_to_I_A⁻¹.srcinds]
+        mul!(implied.I_A⁻¹ol, implied.Aol, implied.I_A⁻¹ll)
+    end # otherwise I_A⁻¹ol === Aol
+    @inbounds parent(implied.I_A⁻¹).nzval[implied.I_A⁻¹ol_to_I_A⁻¹.destinds] .= implied.I_A⁻¹ol[implied.I_A⁻¹ol_to_I_A⁻¹.srcinds]
 
-    mul!(implied.F⨉I_A⁻¹o, implied.F, implied.I_A⁻¹o)
-    mul!(implied.F⨉I_A⁻¹l, implied.F, implied.I_A⁻¹l)
-    mul!(implied.F⨉I_A⁻¹, implied.F, implied.I_A⁻¹)
+    # update F⨉I_A⁻¹
+    mul!(implied.F⨉I_A⁻¹, implied.ram.F, implied.I_A⁻¹)
 
+    # update μ
     if MeanStructure(implied) === HasMeanStructure
         materialize!(implied.M, implied.ram.M, par)
         mul!(implied.μ, implied.F⨉I_A⁻¹, implied.M)
@@ -345,9 +390,12 @@ function update!(targets::EvaluationTargets, implied::RAMLargeSparse, par)
     # required only for Σ⁻¹ and logdet(Σ), but requires par, which is not passed to function update_Σ⁻¹!()
     materialize!(implied.Sll, implied.Sll_parr, par)
     materialize!(implied.Soo, implied.Soo_parr, par)
-    !isnothing(implied.I_Aoo_eval!) && implied.I_Aoo_eval!(parent(implied.I_Aoo), par)
-    !isnothing(implied.I_All_eval!) && implied.I_All_eval!(parent(implied.I_All), par)
-    implied.I_Aol_eval!(parent(implied.I_Aol), par)
+
+    # update (I - A)
+    mpar = -par
+    isnothing(implied.I_Aoo_parr) || materialize!(implied.I_Aoo, implied.I_Aoo_parr, mpar)
+    isnothing(implied.I_All_parr) || materialize!(implied.I_All, implied.I_All_parr, mpar)
+    materialize!(implied.I_Aol, implied.I_Aol_parr, mpar)
 end
 
 function reset_covars!(implied::RAMLargeSparse)
@@ -429,9 +477,13 @@ end
 function update_Σ!(implied::RAMLargeSparse)
     if isnothing(implied._Σ)
         # calculate Σ = F(I-A)⁻¹S(I-A)⁻ᵀFᵀ: first dense part (Sll)
-        implied._Σ = Symmetric(X_A_Xt!(implied._Σ_buf, implied.Sll, implied.F⨉I_A⁻¹l, X_A_buf = implied.F⨉I_A⁻¹l⨉Sll))
+        implied._Σ = Symmetric(X_A_Xt!(implied._Σ_buf, implied.Sll, implied.I_A⁻¹ol, X_A_buf = implied.I_A⁻¹ol⨉Sll))
         # Σ: sparse part (Soo)
-        X_A_Xt!(parent(implied._Σ), implied.Soo, implied.F⨉I_A⁻¹o, 1, 1, X_A_buf = implied.F⨉I_A⁻¹o⨉Soo)
+        if implied.I_A⁻¹oo != I
+            X_A_Xt!(parent(implied._Σ), implied.Soo, implied.I_A⁻¹oo, 1, 1, X_A_buf = implied.I_A⁻¹oo⨉Soo)
+        else
+            parent(implied._Σ) .+= implied.Soo
+        end
     end
 end
 
@@ -492,7 +544,9 @@ function update_Σ⁻¹_sparse!(implied::RAMLargeSparse)
     else
         # parent() because CHOLMOD dispatch does not support triangular matrices:
         # the dispatch goes to generic triangular matrices
-        Sll⁻½⨉I_All = implied._Sll_chol.L \ parent(implied.I_All)
+        Sll⁻½⨉I_All = implied._Sll_chol.piv == 1:size(Σ⁻¹ll, 1) ?
+            implied._Sll_chol.L \ parent(implied.I_All) : # no pivoting
+            (implied._Sll_chol.L \ parent(implied.I_All)[implied._Sll_chol.piv, :])[invperm(implied._Sll_chol.piv), :]
         Xt_X!(parent(Σ⁻¹ll), Sll⁻½⨉I_All)
     end
     Soo⁻½⨉I_Aol = implied._Soo_chol.PtL \ implied.I_Aol
@@ -527,15 +581,17 @@ function update_Σ⁻¹_sparse!(implied::RAMLargeSparse)
     Σ⁻¹oo = Symmetric(implied._Σ⁻¹oo_buf)
     if iszeroAoo(implied)
         # Σ⁻¹oo = Soo⁻¹, skip the multiplications by I_Aoo
-        ldiv!(parent(Σ⁻¹oo), implied._Soo_chol, implied.I_Aoo)
+        copy!(parent(Σ⁻¹oo), implied._Soo_chol \ implied.I_Aoo)
+        # use Schur complement formula to calculate Σoo⁻¹
+        Σ⁻¹lo = mul!(implied._Σ⁻¹lo_buf, implied.I_Aol', Σ⁻¹oo)
     else
         # parent() because CHOLMOD dispatch does not support triangular matrices:
         # the dispatch goes to generic triangular matrices
         Soo⁻½⨉I_Aoo = implied._Soo_chol.PtL \ parent(implied.I_Aoo)
         Xt_X!(parent(Σ⁻¹oo), Soo⁻½⨉I_Aoo)
+        # use Schur complement formula to calculate Σoo⁻¹
+        Σ⁻¹lo = mul!(implied._Σ⁻¹lo_buf, Soo⁻½⨉I_Aol', Soo⁻½⨉I_Aoo)
     end
-    # use Schur complement formula to calculate Σoo⁻¹
-    Σ⁻¹lo = mul!(implied._Σ⁻¹lo_buf, Soo⁻½⨉I_Aol', Soo⁻½⨉I_Aoo)
     #invpiv = invperm(Σ⁻¹ll_chol.piv)
     #Σ⁻¹ll_chol_L⁻¹ = inv(Σ⁻¹ll_chol.L)[invpiv, invpiv]
     Σ⁻¹ll⁻½⨉Σ⁻¹lo = ldiv!(Σ⁻¹ll_chol.L, Σ⁻¹lo)
