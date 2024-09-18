@@ -268,8 +268,8 @@ function RAMLargeSparse(spec::SemSpecification;
     I_A⁻¹ol_pre = !isnothing(I_A⁻¹ll_eval!) || !isnothing(I_A⁻¹oo_eval!) ? similar(Aol_pre) : Aol_pre
 
     # materialize sparse I_A submatrices
-    I_A⁻¹_r, I_A⁻¹_c, _ = findnz(I_A⁻¹_sym)
-    I_A⁻¹_pre = M_I_A(sparse(I_A⁻¹_r, I_A⁻¹_c, randn(T, nnz(I_A⁻¹_sym)), size(I_A⁻¹_sym)...))
+    I_A⁻¹_pre = M_I_A(SparseMatrixCSC(size(I_A⁻¹_sym)..., I_A⁻¹_sym.colptr, I_A⁻¹_sym.rowval,
+                      [isa(Symbolics.value(v), Number) ? T(Symbolics.value(v)) : rand(T) for v in I_A⁻¹_sym.nzval]))
     F⨉I_A⁻¹_pre = ram.F * I_A⁻¹_pre
 
     Σ_pre = Symmetric(zeros(T, nobs, nobs))
