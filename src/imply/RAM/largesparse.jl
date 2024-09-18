@@ -247,11 +247,9 @@ function RAMLargeSparse(spec::SemSpecification;
         I_A⁻¹ll_pre = M_I_A(zeros(T, nlat, nlat))
         verbose && @info "  $(nnz(parent(I_A⁻¹ll_pre))) nonzeros in I_A⁻¹[l,l]"
         I_A⁻¹ll_eval!(I_A⁻¹ll_pre, randpars)
-        I_A⁻¹ol_pre = Aol_pre * I_A⁻¹ll_pre
     else # no latent-latent regression
         I_A⁻¹ll_eval! = nothing
         I_A⁻¹ll_pre = I
-        I_A⁻¹ol_pre = Aol_pre # reuse Aol array identical
     end
 
     if !isnothing(I_Aoo_parr)
@@ -265,6 +263,9 @@ function RAMLargeSparse(spec::SemSpecification;
         I_A⁻¹oo_eval, I_A⁻¹oo_eval! = nothing, nothing
         I_A⁻¹oo_pre = I
     end
+
+    # I_A⁻¹ol === Aol if no latent-latent and observed-observed regressions
+    I_A⁻¹ol_pre = !isnothing(I_A⁻¹ll_eval!) || !isnothing(I_A⁻¹oo_eval!) ? similar(Aol_pre) : Aol_pre
 
     # materialize sparse I_A submatrices
     I_A⁻¹_r, I_A⁻¹_c, _ = findnz(I_A⁻¹_sym)
@@ -366,16 +367,21 @@ function update!(targets::EvaluationTargets, implied::RAMLargeSparse, par)
     materialize!(implied.S, implied.ram.S, par)
 
     # update (I - A)⁻¹
+    materialize!(implied.Aol, implied.Aol_parr, par)
     if !isnothing(implied.I_A⁻¹oo_eval!) # only if I_A⁻¹o is not constant
         implied.I_A⁻¹oo_eval!(parent(implied.I_A⁻¹oo), par)
         @inbounds parent(implied.I_A⁻¹).nzval[implied.I_A⁻¹oo_to_I_A⁻¹_destinds] .= parent(implied.I_A⁻¹oo).nzval
+
+        I_A⁻¹ol_1 = isnothing(implied.I_A⁻¹ll_eval!) ? implied.I_A⁻¹ol : implied.I_A⁻¹ol⨉Sll
+        mul!(I_A⁻¹ol_1, implied.I_A⁻¹oo, implied.Aol)
+    else
+        I_A⁻¹ol_1 = implied.Aol
     end
-    materialize!(implied.Aol, implied.Aol_parr, par)
     if !isnothing(implied.I_A⁻¹ll_eval!)
         implied.I_A⁻¹ll_eval!(parent(implied.I_A⁻¹ll), par)
         @inbounds parent(implied.I_A⁻¹).nzval[implied.I_A⁻¹ll_to_I_A⁻¹.destinds] .= parent(implied.I_A⁻¹ll)[implied.I_A⁻¹ll_to_I_A⁻¹.srcinds]
-        mul!(implied.I_A⁻¹ol, implied.Aol, implied.I_A⁻¹ll)
-    end # otherwise I_A⁻¹ol === Aol
+        mul!(implied.I_A⁻¹ol, I_A⁻¹ol_1, implied.I_A⁻¹ll)
+    end # otherwise I_A⁻¹ol === I_A⁻¹ol_1 (=== Aol of both regressions are zero)
     @inbounds parent(implied.I_A⁻¹).nzval[implied.I_A⁻¹ol_to_I_A⁻¹.destinds] .= implied.I_A⁻¹ol[implied.I_A⁻¹ol_to_I_A⁻¹.srcinds]
 
     # update F⨉I_A⁻¹
