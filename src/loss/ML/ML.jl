@@ -187,24 +187,22 @@ function evaluate_gradient_hessian!(
         S = implied.S
         F⨉I_A⁻¹ = implied.F⨉I_A⁻¹
         I_A⁻¹ = implied.I_A⁻¹
-        ∇A = implied.∇A
-        ∇S = implied.∇S
 
         C = Xt_A_X!(ml.varXvar_1, Σ⁻¹mΣ⁻¹ΣₒΣ⁻¹, F⨉I_A⁻¹, Xt_A_buf = ml.varXobs_1)
         I_A⁻¹⨉S = mul!(ml.varXvar_2, I_A⁻¹, S)
         C⨉S⨉I_Aᵀ⁻¹ = mul!(ml.varXvar_3, C, I_A⁻¹⨉S') # not using Symmetric(C) to allow sparse dispatch
-        mul!(gradient, ∇A', vec(C⨉S⨉I_Aᵀ⁻¹), 2, 0)
-        mul!(gradient, ∇S', vec(C), 1, 1)
-        # C not needed
 
         if !isnothing(μ₋)
-            ∇M = implied.∇M
             M = implied.M
             k = F⨉I_A⁻¹'*(Σ⁻¹*μ₋)
-            mul!(gradient, ∇M', k, -2, 1)
-            mul!(gradient, ∇A', vec(mul!(ml.varXvar_1, k, (I_A⁻¹*(M + S*k))')), -2, 1)
-            mul!(gradient, ∇S', vec(X_Xt!(ml.varXvar_1, k)), -1, 1)
+            # update C⨉S⨉I_Aᵀ⁻¹ and C
+            mul!(C⨉S⨉I_Aᵀ⁻¹, k, (I_A⁻¹*(M + S*k))', -1, 1)
+            X_Xt!(C, k, -1, 1)
+            mul!(gradient, implied.∇M', k, -2, 0)
         end
+
+        mul!(gradient, implied.∇A', vec(C⨉S⨉I_Aᵀ⁻¹), 2, ifelse(isnothing(μ₋), 0, 1))
+        mul!(gradient, implied.∇S', vec(C), 1, 1)
     end
 
     return nothing
