@@ -293,8 +293,8 @@ function RAMLargeSparse(spec::SemSpecification;
     I_A⁻¹oo⨉Soo_pre = !isnothing(I_Aoo_parr) ? I_A⁻¹oo_pre * Soo_pre : I
 
     if gradient_required
-        ∇A = sparse_gradient(ram.A)
-        ∇S = sparse_gradient(ram.S)
+        ∇A = sparse_gradient(T, ram.A)
+        ∇S = sparse_gradient(T, ram.S)
     else
         ∇A = nothing
         ∇S = nothing
@@ -304,7 +304,7 @@ function RAMLargeSparse(spec::SemSpecification;
     if !isnothing(ram.M)
         MS = HasMeanStructure
         M_pre = materialize(ram.M, randpars)
-        ∇M = gradient_required ? sparse_gradient(ram.M) : nothing
+        ∇M = gradient_required ? sparse_gradient(T, ram.M) : nothing
         μ_pre = zeros(T, nobs)
     else
         MS = NoMeanStructure
