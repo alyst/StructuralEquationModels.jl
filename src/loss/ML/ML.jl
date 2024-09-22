@@ -198,7 +198,7 @@ function evaluate_gradient_hessian!(
             k = F⨉I_A⁻¹'*(Σ⁻¹*μ₋)
             # update C⨉S⨉I_Aᵀ⁻¹ and C
             mul!(C⨉S⨉I_Aᵀ⁻¹, k, (I_A⁻¹*(M + S*k))', -1, 1)
-            X_Xt!(C, k, -1, 1)
+            X_Xt!(C, k, -1, 1, check=false)
             mul!(gradient, implied.∇M', k, -2, 0)
         end
 
