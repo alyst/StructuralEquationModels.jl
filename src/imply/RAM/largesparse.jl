@@ -209,7 +209,7 @@ function RAMLargeSparse(spec::SemSpecification;
         I_Aoo_pre = M_I_A(sparse_materialize(I_Aoo_parr, randpars))
         @assert M_I_A == UnitLowerTriangular && istril(I_Aoo_pre) || M_I_A == UnitUpperTriangular && istriu(I_Aoo_pre)
     else
-        verbose && @info "No observed-observed regression detected, I - A[o,o] = I"
+        verbose && @info "No observed-observed regressions detected, I - A[obs,obs] = I"
         I_Aoo_parr = nothing
         I_Aoo_pre = spdiagm(nobs, nobs, fill(one(T), nobs)) # I does not work with ldiv!(X, cholmod, I)
     end
@@ -220,7 +220,7 @@ function RAMLargeSparse(spec::SemSpecification;
         I_All_pre = M_I_A(materialize(I_All_parr, randpars))
         @assert M_I_A == UnitLowerTriangular && istril(I_All_pre) || M_I_A == UnitUpperTriangular && istriu(I_All_pre)
     else
-        verbose && @info "No latent-latent regression detected, I - A[l,l] = I"
+        verbose && @info "No latent-latent regressions detected, I - A[lat,lat] = I"
         I_All_parr = nothing
         I_All_pre = I
     end
@@ -230,7 +230,7 @@ function RAMLargeSparse(spec::SemSpecification;
     I_Aol_parr = ParamsArray{T}(I_A_par[observed_var_indices(ram), latent_var_indices(ram)], params(ram))
     I_Aol_pre = materialize(Aol_parr, randpars)
 
-    verbose && @info "computing symbolic (I - A)⁻¹(θ)"
+    verbose && @info "computing symbolic (I - A)⁻¹(θ) via Neumann series"
     I_A⁻¹_sym = neumann_series(A_sym; Aⁿ_rewriter, maxn = something(max_An, size(A_sym, 1)))
     @assert M_I_A == UnitUpperTriangular && istriu(I_A⁻¹_sym) || M_I_A == UnitLowerTriangular && istril(I_A⁻¹_sym)
     if simplify
@@ -245,7 +245,7 @@ function RAMLargeSparse(spec::SemSpecification;
         _, I_A⁻¹ll_eval! = Symbolics.build_function(convert(Matrix, I_A⁻¹_sym[latent_var_indices(ram), latent_var_indices(ram)]), sympars, expression=Val{false})
         verbose && @info "  generating initial I_A⁻¹ll(θ)..."
         I_A⁻¹ll_pre = M_I_A(zeros(T, nlat, nlat))
-        verbose && @info "  $(nnz(parent(I_A⁻¹ll_pre))) nonzeros in I_A⁻¹[l,l]"
+        verbose && @info "  $(nnz(parent(I_A⁻¹ll_pre))) nonzeros in I_A⁻¹[lat,lat]"
         I_A⁻¹ll_eval!(I_A⁻¹ll_pre, randpars)
     else # no latent-latent regression
         I_A⁻¹ll_eval! = nothing
@@ -258,7 +258,7 @@ function RAMLargeSparse(spec::SemSpecification;
         I_A⁻¹oo_eval, I_A⁻¹oo_eval! = Symbolics.build_function(I_A⁻¹oo_sym, sympars, expression=Val{false})
         verbose && @info "  generating initial I_A⁻¹o(θ)..."
         I_A⁻¹oo_pre = M_I_A(I_A⁻¹oo_eval(randpars))
-        verbose && @info "  $(nnz(parent(I_A⁻¹oo_pre))) nonzeros in I_A⁻¹[o,o]"
+        verbose && @info "  $(nnz(parent(I_A⁻¹oo_pre))) nonzeros in I_A⁻¹[obs,obs]"
     else
         I_A⁻¹oo_eval, I_A⁻¹oo_eval! = nothing, nothing
         I_A⁻¹oo_pre = I
