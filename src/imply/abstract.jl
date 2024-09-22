@@ -42,8 +42,8 @@ end
 # delaying the update of the specific fields until needed
 function update_covars!(imply::SemImply)
     if isnothing(imply._Σ_chol) # skip if already updated
-        copy!(imply._Σ_chol_buf, imply.Σ)
-        imply._Σ_chol = cholesky!(imply._Σ_chol_buf; check=false)
+        BLAS.blascopy!(length(imply._Σ_chol_buf), _unwrap_symmetric(imply.Σ), 1, imply._Σ_chol_buf, 1)
+        imply._Σ_chol = cholesky!(Symmetric(imply._Σ_chol_buf); check=false)
         imply._isposdef_Σ = isposdef(imply._Σ_chol)
         imply._logdet_Σ = imply._isposdef_Σ ? logdet(imply._Σ_chol) : NaN # cheap
     end
