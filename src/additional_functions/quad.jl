@@ -50,15 +50,42 @@ end
     A
 end
 
+# faster version that drops issymmetric checks
+# and switches to gemm mode for large matrices
+@inline function syrk_wrapper!(res::AbstractMatrix, trans::Char, X::Union{StridedMatrix, StridedVector},
+                               alpha::Real = 1, beta::Real = 0;
+                               check::Bool = true,
+                               # big matrices are multiplied in gemm mode to avoid long copytri!()
+                               mode::Symbol = size(res, 1) >= 1000 ? :gemm : :syrk)
+    T = eltype(X)
+    if mode == :syrk && (iszero(beta) || (!check || issymmetric(res)))
+        BLAS.syrk!('U', trans, T(alpha), X, T(beta), _unwrap_symmetric(res))
+        fastcopytri!(_unwrap_symmetric(res), 'U')
+    elseif mode == :gemm # generic
+        LinearAlgebra.gemm_wrapper!(_unwrap_symmetric(res), 'N', 'T', X, X,
+                                    LinearAlgebra.MulAddMul(alpha, beta))
+    else
+        throw(ArgumentError(lazy"mode must be :syrk or :gemm, $mode given"))
+    end
+    return res
+end
 
 # calculate Xᵀ⋅X
 Xt_X!(res::AbstractMatrix, X::AbstractMatrix,
       alpha::Real = 1, beta::Real = 0) =
     mul!(_unwrap_symmetric(res), X', X, alpha, beta)
 
+Xt_X!(res::AbstractMatrix, X::StridedMatrix,
+      alpha::Real = 1, beta::Real = 0; kwargs...) =
+    syrk_wrapper!(res, 'T', X, alpha, beta; kwargs...)
+
 X_Xt!(res::AbstractMatrix, X::Union{AbstractMatrix, AbstractVector},
       alpha::Real = 1, beta::Real = 0) =
     mul!(_unwrap_symmetric(res), X, X', alpha, beta)
+
+X_Xt!(res::AbstractMatrix, X::Union{StridedMatrix, StridedVector},
+      alpha::Real = 1, beta::Real = 0; kwargs...) =
+    syrk_wrapper!(res, 'N', X, alpha, beta; kwargs...)
 
 Xt_X(X::AbstractMatrix) =
     Xt_X!(Matrix{eltype(X)}(undef, size(X, 2), size(X, 2)), X)
