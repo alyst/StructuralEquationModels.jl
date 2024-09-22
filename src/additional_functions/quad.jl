@@ -6,6 +6,51 @@ _unwrap_symmetric(res::Symmetric) = parent(res)
 unsafe_mul!(C, A, B, alpha, beta) = mul!(C, A, B, alpha, beta)
 unsafe_mul!(C, A, B) = mul!(C, A, B)
 
+# faster version of copytri!() that uses blascopy!()
+function blascopytri!(A::StridedMatrix, uplo::AbstractChar)
+    n = LinearAlgebra.checksquare(A)
+    if uplo == 'L'
+        for (i, di) = enumerate(diagind(A))
+            (i < n) || continue
+            BLAS.blascopy!(n - i,
+                pointer(A, di + 1), stride(A, 1),
+                pointer(A, di + size(A, 2)), stride(A, 2))
+        end
+    elseif uplo == 'U'
+        for (i, di) = enumerate(diagind(A))
+            (i < n) || continue
+            BLAS.blascopy!(n - i,
+                pointer(A, di + size(A, 2)), stride(A, 2),
+                pointer(A, di + 1), stride(A, 1))
+        end
+    else
+        throw(ArgumentError(lazy"uplo argument must be 'U' (upper) or 'L' (lower), got $uplo"))
+    end
+    return A
+end
+
+# faster copytri!() that uses @simd, @inbounds and drops elementwise conjugation
+@inline function fastcopytri!(A::AbstractMatrix, uplo::AbstractChar)
+    n = LinearAlgebra.checksquare(A)
+    if uplo == 'U'
+        @inbounds for i in axes(A, 1)
+            @simd for j in (i+1):n
+                A[j,i] = A[i,j]
+            end
+        end
+    elseif uplo == 'L'
+        @inbounds for i in axes(A, 1)
+            @simd for j in (i+1):n
+                A[i,j] = A[j,i]
+            end
+        end
+    else
+        throw(ArgumentError(lazy"uplo argument must be 'U' (upper) or 'L' (lower), got $uplo"))
+    end
+    A
+end
+
+
 # calculate Xᵀ⋅X
 Xt_X!(res::AbstractMatrix, X::AbstractMatrix,
       alpha::Real = 1, beta::Real = 0) =
