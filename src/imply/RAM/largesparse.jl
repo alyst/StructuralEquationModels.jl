@@ -476,7 +476,8 @@ end
 # direct way of calculating Σoo cholesky from Σoo when S is not positive definite
 function update_Σ_chol!(implied::RAMLargeSparse)
     if isnothing(implied._Σ_chol)
-        implied._Σ_chol = cholesky!(copy!(implied._Σ⁻¹oo_buf, implied.Σ), check=false)
+        BLAS.blascopy!(length(implied.Σ), parent(implied.Σ), 1, implied._Σ⁻¹oo_buf, 1)
+        implied._Σ_chol = cholesky!(Symmetric(implied._Σ⁻¹oo_buf), check=false)
     end
 end
 
