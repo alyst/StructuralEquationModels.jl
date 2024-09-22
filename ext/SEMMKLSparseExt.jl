@@ -1,7 +1,7 @@
 module SEMMKLSparseExt
 
 import StructuralEquationModels: Xt_X!, X_Xt!, Xt_A_X!, X_A_Xt!
-using StructuralEquationModels: _unwrap_symmetric
+using StructuralEquationModels: _unwrap_symmetric, blascopytri!, fastcopytri!
 using SparseArrays, LinearAlgebra
 using MKLSparse: syrkd!, syprd!, SparseMatrixCSR
 
@@ -18,8 +18,8 @@ function Xt_X!(res::AbstractMatrix{T}, X::AbstractSparseMatrix{T},
 ) where T
     syrkd!('N', T(alpha), convert(SparseMatrixCSR, transpose(X)),
            T(beta), _unwrap_symmetric(res))
-    @inbounds LinearAlgebra.copytri!(res, 'U')
-    @assert issymmetric(res)
+    fastcopytri!(res, 'U')
+    #@assert issymmetric(res)
     return res
 end
 
@@ -28,7 +28,7 @@ function X_Xt!(res::AbstractMatrix{T}, X::AbstractSparseMatrix{T},
 ) where T
     syrkd!('T', T(alpha), convert(SparseMatrixCSR, transpose(X)),
            T(beta), _unwrap_symmetric(res))
-    @inbounds LinearAlgebra.copytri!(res, 'U')
+    fastcopytri!(res, 'U')
 end
 
 # calculate Xᵀ⋅A⋅X
@@ -39,7 +39,7 @@ function Xt_A_X!(res::AbstractMatrix{T}, A::StridedMatrix{T},
 ) where T
     syprd!('N', T(alpha), convert(SparseMatrixCSR, transpose(X)),
            A, T(beta), _unwrap_symmetric(res))
-    @inbounds LinearAlgebra.copytri!(res, 'U')
+    fastcopytri!(res, 'U')
 end
 
 Xt_A_X!(res::AbstractMatrix{T}, A::Symmetric{T, <:StridedMatrix{T}},
@@ -56,7 +56,7 @@ function X_A_Xt!(res::AbstractMatrix{T}, A::StridedMatrix{T},
 ) where T
     syprd!('T', T(alpha), convert(SparseMatrixCSR, transpose(X)),
            _unwrap_symmetric(A), T(beta), _unwrap_symmetric(res))
-    @inbounds LinearAlgebra.copytri!(res, 'U')
+    fastcopytri!(res, 'U')
 end
 
 X_A_Xt!(res::AbstractMatrix{T}, A::Symmetric{T, <:StridedMatrix{T}},
