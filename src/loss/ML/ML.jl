@@ -103,7 +103,8 @@ function evaluate!(
     if !isnothing(gradient) || !isnothing(hessian)
         # Σ⁻¹ - Σ⁻¹Σₒ*Σ⁻¹
         Σ⁻¹ = implied.Σ⁻¹
-        Σ⁻¹mΣ⁻¹ΣₒΣ⁻¹ = mul!(copy!(ml.obsXobs_2, Σ⁻¹), Σ⁻¹Σₒ, Σ⁻¹, -1, 1)
+        BLAS.blascopy!(length(Σ⁻¹), parent(Σ⁻¹), 1, ml.obsXobs_2, 1)
+        Σ⁻¹mΣ⁻¹ΣₒΣ⁻¹ = mul!(ml.obsXobs_2, Σ⁻¹Σₒ, Σ⁻¹, -1, 1)
         # Σ⁻¹Σₒ (i.e. ml.obsXobs_1) is no longer needed
 
         evaluate_gradient_hessian!(
