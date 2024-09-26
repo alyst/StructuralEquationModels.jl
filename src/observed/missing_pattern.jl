@@ -46,7 +46,6 @@ function reorder_observed_vars!(pat::SemObservedMissingPattern, source_to_dest::
     obs_dest = sort!(unique!(source_to_dest[pat.obs_mask])) # indices of observed vars after reordering
     obs_src2dest = [searchsortedfirst(obs_dest, dest)
                     for (src, dest) in enumerate(source_to_dest) if pat.obs_mask[src]]
-    @show size(obs_src2dest) size(pat.obs_cov) size(pat.obs_mean)
     copy!(pat.obs_mask, pat.obs_mask[source_to_dest])
     copy!(pat.miss_mask, pat.miss_mask[source_to_dest])
     copy!(pat.data, pat.data[obs_src2dest, :])
