@@ -62,7 +62,7 @@ end
         BLAS.syrk!('U', trans, T(alpha), X, T(beta), _unwrap_symmetric(res))
         fastcopytri!(_unwrap_symmetric(res), 'U')
     elseif mode == :gemm # generic
-        LinearAlgebra.gemm_wrapper!(_unwrap_symmetric(res), 'N', 'T', X, X,
+        LinearAlgebra.gemm_wrapper!(_unwrap_symmetric(res), trans, trans == 'N' ? 'T' : 'N', X, X,
                                     LinearAlgebra.MulAddMul(alpha, beta))
     else
         throw(ArgumentError(lazy"mode must be :syrk or :gemm, $mode given"))
