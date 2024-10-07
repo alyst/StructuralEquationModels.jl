@@ -47,7 +47,7 @@ function latent_scores_operator(::SemRegressionScores, model::SemLoss, params::A
     S = materialize(ram.S, params)
     if alpha == 0
         lv_I_A⁻¹ = inv(I - A)[lv_inds, :]
-        cov_lv = Xt_A_X(S, lv_I_A⁻¹')
+        cov_lv = X_A_Xt(S, lv_I_A⁻¹)
     else
         cov_lv = inv(Xt_A_X(inv(S), I - A) + alpha * I)[lv_inds, lv_inds]
     end
