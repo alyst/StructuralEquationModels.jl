@@ -557,7 +557,7 @@ function update_Σ⁻¹_sparse!(implied::RAMLargeSparse)
         Xt_X!(parent(Σ⁻¹ll), Sll⁻½⨉I_All)
     end
     Soo⁻½⨉I_Aol = implied._Soo_chol.PtL \ implied.I_Aol
-    Xt_X!(parent(Σ⁻¹ll), Soo⁻½⨉I_Aol, 1, 1)
+    Xt_X!(parent(Σ⁻¹ll), Soo⁻½⨉I_Aol, 1, 1, check=false)
     #let ctxt = IOContext(stdout, :compact => false)
     #     print("Soo="); show(ctxt, "text/plain", implied.Soo); println()
     #     print("Sll="); show(ctxt, "text/plain", implied.Sll); println()
@@ -603,7 +603,7 @@ function update_Σ⁻¹_sparse!(implied::RAMLargeSparse)
     #Σ⁻¹ll_chol_L⁻¹ = inv(Σ⁻¹ll_chol.L)[invpiv, invpiv]
     Σ⁻¹ll⁻½⨉Σ⁻¹lo = ldiv!(Σ⁻¹ll_chol.L, Σ⁻¹lo)
     #Σ⁻¹ll⁻½⨉Σ⁻¹lo = Σ⁻¹ll_chol_L⁻¹ * Σ⁻¹lo
-    Σoo⁻¹ = Xt_X!(Σ⁻¹oo, Σ⁻¹ll⁻½⨉Σ⁻¹lo, -1, 1)
+    Σoo⁻¹ = Xt_X!(Σ⁻¹oo, Σ⁻¹ll⁻½⨉Σ⁻¹lo, -1, 1, check=false)
     implied._Σ⁻¹ = Symmetric(Σoo⁻¹)
     # let ctxt = IOContext(stdout, :compact => false)
     #     print("Σoo⁻¹="); show(ctxt, "text/plain", Σoo⁻¹); println()
