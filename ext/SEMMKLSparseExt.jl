@@ -14,21 +14,32 @@ unsafe_mul!(C::AbstractSparseMatrix, A, B) =
 
 # calculate Xᵀ⋅X
 function Xt_X!(res::AbstractMatrix{T}, X::AbstractSparseMatrix{T},
-               alpha::Real = 1, beta::Real = 0
+               alpha::Real = 1, beta::Real = 0;
+               check::Bool = true
 ) where T
-    syrkd!('N', T(alpha), convert(SparseMatrixCSR, transpose(X)),
-           T(beta), _unwrap_symmetric(res))
-    fastcopytri!(res, 'U')
-    #@assert issymmetric(res)
+    if iszero(beta) || (!check || issymmetric(res))
+        syrkd!('N', T(alpha), convert(SparseMatrixCSR, transpose(X)),
+            T(beta), _unwrap_symmetric(res))
+        fastcopytri!(res, 'U')
+    else # generic sparse*sparse mul
+        mul!(res, transpose(X), X, alpha, beta)
+        #@assert issymmetric(res)
+    end
     return res
 end
 
 function X_Xt!(res::AbstractMatrix{T}, X::AbstractSparseMatrix{T},
-               alpha::Real = 1, beta::Real = 0
+               alpha::Real = 1, beta::Real = 0;
+               check::Bool = true
 ) where T
-    syrkd!('T', T(alpha), convert(SparseMatrixCSR, transpose(X)),
-           T(beta), _unwrap_symmetric(res))
-    fastcopytri!(res, 'U')
+    if iszero(beta) || (!check || issymmetric(res))
+        syrkd!('T', T(alpha), convert(SparseMatrixCSR, transpose(X)),
+            T(beta), _unwrap_symmetric(res))
+        fastcopytri!(res, 'U')
+    else # generic sparse*sparse mul
+        mul!(res, X, transpose(X), alpha, beta)
+        #@assert issymmetric(res)
+    end
 end
 
 # calculate Xᵀ⋅A⋅X
