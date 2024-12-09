@@ -82,7 +82,8 @@ function SemObservedMissing(
     verbose && @info "Inferring N(μ, Σ) using EM algorithm..."
     em_cov, em_mean = em_mvn(patterns; verbose, kwargs...)
 
-    return SemObservedMissing(data, observed_vars, n_obs, patterns, em_cov, em_mean)
+    return SemObservedMissing(convert(Matrix{Union{nonmissingtype(eltype(data)), Missing}}, data),
+                              observed_vars, n_obs, patterns, em_cov, em_mean)
 end
 
 n_obs(observed::SemObservedMissing) = observed.n_obs
