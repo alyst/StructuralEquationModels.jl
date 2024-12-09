@@ -26,18 +26,8 @@ islatent_var(ram::RAMMatrices, i::Integer) =
 
 # indices of observed variables, for order=:rows (default), the order is as they appear in ram.F rows
 # if order=:columns, the order is as they appear in the comined variables list (ram.F columns)
-function observed_var_indices(ram::RAMMatrices; order::Symbol = :rows)
-    obs_inds = Vector{Int}(undef, nobserved_vars(ram))
-    nobs = 0
-    @inbounds for i in 1:nvars(ram)
-        colptr = ram.F.colptr[i]
-        if ram.F.colptr[i+1] > colptr # is observed
-            nobs += 1
-            obs_inds[order == :rows ? ram.F.rowval[colptr] : nobs] = i
-        end
-    end
-    return obs_inds
-end
+observed_var_indices(ram::RAMMatrices; order::Symbol = :rows) =
+    nzcols_eachrow_to_col(ram.F; order)
 
 latent_var_indices(ram::RAMMatrices) =
     [i for i in axes(ram.F, 2) if islatent_var(ram, i)]
@@ -50,16 +40,7 @@ function observed_vars(ram::RAMMatrices; order::Symbol = :rows)
         @warn "Your RAMMatrices do not contain column names. Please make sure the order of variables in your data is correct!"
         return nothing
     else
-        nobs = 0
-        obs_vars = Vector{Symbol}(undef, nobserved_vars(ram))
-        @inbounds for (i, v) in enumerate(vars(ram))
-            colptr = ram.F.colptr[i]
-            if ram.F.colptr[i+1] > colptr # is observed
-                nobs += 1
-                obs_vars[order == :rows ? ram.F.rowval[colptr] : nobs] = v
-            end
-        end
-        return obs_vars
+        return nzcols_eachrow_to_col(Base.Fix1(getindex, vars(ram)), ram.F; order = order)
     end
 end
 
@@ -236,9 +217,7 @@ function RAMMatrices(partable::ParameterTable;
 
     return RAMMatrices(ParamsMatrix{T}(A_inds, A_consts, (n_vars, n_vars)),
                        ParamsMatrix{T}(S_inds, S_consts, (n_vars, n_vars)),
-                       sparse(1:n_observed,
-                              [vars_index[var] for var in partable.variables.observed],
-                              ones(T, n_observed), n_observed, n_vars),
+                       eachrow_to_col(T, [vars_index[var] for var in partable.variables.observed], n_vars),
                        !isnothing(M_inds) ? ParamsVector{T}(M_inds, M_consts, (n_vars,)) : nothing,
                        params, vars_sorted)
 end

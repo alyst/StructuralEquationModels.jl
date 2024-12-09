@@ -19,6 +19,7 @@ include("objective_gradient_hessian.jl")
 # helper objects and functions
 include("additional_functions/commutation_matrix.jl")
 include("additional_functions/quad.jl")
+include("additional_functions/sparse_utils.jl")
 
 # fitted objects
 include("frontend/fit/SemFit.jl")
