@@ -187,7 +187,7 @@ function evaluate_gradient_hessian!(
     if !isnothing(gradient)
         S = implied.S
         F⨉I_A⁻¹ = implied.F⨉I_A⁻¹
-        I_A⁻¹ = implied.I_A⁻¹
+        I_A⁻¹ = parent(implied.I_A⁻¹)
 
         C = Xt_A_X!(ml.varXvar_1, Σ⁻¹mΣ⁻¹ΣₒΣ⁻¹, F⨉I_A⁻¹, Xt_A_buf = ml.varXobs_1)
         I_A⁻¹⨉S = mul!(ml.varXvar_2, I_A⁻¹, S)

@@ -118,7 +118,7 @@ function RAM(spec::SemSpecification;
 
     # pre-allocate some matrices
     I_A = typeof(A_pre)(I - parent(A_pre))
-    F⨉I_A⁻¹ = F * A_pre
+    F⨉I_A⁻¹ = F * parent(A_pre)
     F⨉I_A⁻¹S = similar(F⨉I_A⁻¹)
     Σ = Symmetric(zeros(T, n_obs, n_obs))
 
@@ -197,7 +197,7 @@ function update!(targets::EvaluationTargets, imply::RAM, params)
                 rethrow(e)
             end
         end
-        mul!(imply.F⨉I_A⁻¹, imply.F, imply.I_A⁻¹)
+        mul!(imply.F⨉I_A⁻¹, imply.F, parent(imply.I_A⁻¹))
     else
         copyto!(imply.F⨉I_A⁻¹, imply.F)
         rdiv!(imply.F⨉I_A⁻¹, factorize(imply.I_A))
