@@ -375,7 +375,7 @@ function variance_params(partable::ParameterTable)
     res = [param for (param, rel, from, to) in
                 zip(partable.columns.param, partable.columns.relation,
                     partable.columns.from, partable.columns.to)
-           if (rel == :↔) && (from == to)]
+           if (rel == :↔) && (from == to) && (param != :const)]
     unique!(res)
 end
 
