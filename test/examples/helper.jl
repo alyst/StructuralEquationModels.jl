@@ -24,7 +24,7 @@ function test_gradient(model, parameters; rtol = 1e-10, atol = 0)
     @test gradient_G == gradient_FG
 
     if !isapprox(gradient_G, true_grad; rtol = rtol, atol = atol)
-        @info "G norm = $(norm(gradient_G - true_grad, Inf))"
+        @info "extrema(err(G)) = $(extrema(gradient_G - true_grad))"
     end
     @test gradient_G ≈ true_grad rtol = rtol atol = atol
 end
