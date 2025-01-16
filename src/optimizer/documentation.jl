@@ -53,7 +53,7 @@ function prepare_start_params(start_val, model::AbstractSem;
     else # function
         start_val = start_val(model; kwargs...)
     end
-    @assert start_val isa AbstractVector
+    @assert start_val isa AbstractVector{<:Number}
     @assert length(start_val) == nparams(model)
     if start_params_jitter != 0
         start_val .+= randn(length(start_val)) * start_params_jitter
