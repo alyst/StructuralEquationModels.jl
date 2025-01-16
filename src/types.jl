@@ -75,11 +75,13 @@ State of `SemImply` that corresponds to the specific SEM parameter values.
 Contains the necessary vectors and matrices for calculating the SEM
 objective, gradient and hessian (whichever is requested).
 """
-abstract type SemImplyState end
+abstract type SemImplyState{I <: SemImply} end
 
+implytype(::Type{SemImplyState{I}}) where I = I
+implytype(state::SemImplyState) = implytype(typeof(state))
 imply(state::SemImplyState) = state.imply
-MeanStructure(state::SemImplyState) = MeanStructure(imply(state))
-ApproximateHessian(state::SemImplyState) = ApproximateHessian(imply(state))
+MeanStructure(::Type{S}) where S <: SemImplyState = MeanStructure(implytype(state))
+ApproximateHessian(::Type{S}) where S <: SemImplyState = ApproximateHessian(implytype(state))
 
 """
     abstract type SemLoss{O <: SemObserved, I <: SemImply, HE <: HessianEvaluation} <: AbstractLoss{HE} end
