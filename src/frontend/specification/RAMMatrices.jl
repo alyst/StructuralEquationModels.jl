@@ -12,6 +12,8 @@ struct RAMMatrices <: SemSpecification
     colnames::Union{Vector{Symbol}, Nothing}    # better call it "variables": it's a mixture of observed and latent (and it gets confusing with get_colnames())
 end
 
+MeanStructure(ram::RAMMatrices) = isnothing(ram.M) ? NoMeanStructure() : HasMeanStructure()
+
 nparams(ram::RAMMatrices) = nparams(ram.A)
 nvars(ram::RAMMatrices) = size(ram.F, 2)
 nobserved_vars(ram::RAMMatrices) = size(ram.F, 1)
