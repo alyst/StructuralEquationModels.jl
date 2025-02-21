@@ -62,7 +62,7 @@ function SemObservedData(data;
     length(obs_vars) == size(data, 2) ||
         throw(DimensionMismatch("The number of observed variables ($(length(obs_vars))) " *
                                 "does not match the number of columns in the data ($(size(data, 2)))"))
-    obs_mean, obs_cov = mean_and_cov(data, 1)
+    obs_mean, obs_cov = mean_and_cov(convert(Matrix, data), 1)
 
     return SemObservedData(data, obs_vars,
         obs_cov, vec(obs_mean),
