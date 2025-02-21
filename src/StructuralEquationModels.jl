@@ -56,8 +56,7 @@ include("loss/ML/FIML.jl")
 include("loss/WLS/WLS.jl")
 include("loss/constant/constant.jl")
 
-include("loss/regularization/lasso.jl")
-include("loss/regularization/ridge.jl")
+include("loss/regularization/norm.jl")
 include("loss/regularization/hinge.jl")
 include("loss/regularization/squared_hinge.jl")
 # optimizer
@@ -107,7 +106,7 @@ export  ParamsArray, ParamsMatrix, ParamsVector,
         AbstractLoss,
             SemLoss, SemML, SemFIML, em_mvn,
             SemConstant, SemWLS, loss,
-            SemLasso, SemRidge, SemHinge, SemSquaredHinge,
+            SemNorm, SemLasso, SemRidge, SemHinge, SemSquaredHinge,
         SemOptimizer,
             SemOptimizerEmpty, SemOptimizerOptim,
             optimizer, n_iterations, convergence,
