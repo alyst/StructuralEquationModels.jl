@@ -35,16 +35,21 @@ function inv_cov!(A::AbstractMatrix)
     return inv!(A_chol)
 end
 
-function latent_scores_operator(::SemRegressionScores, model::SemLoss, params::AbstractVector;
+function latent_scores_operator(::Type{T}, model::SemLoss, params::AbstractVector;
+                                kwargs...
+) where T <: SemScoresPredictMethod
+    ram = imply(model).ram_matrices
+    latent_scores_operator(T, imply(model), materialize(ram.A, params), materialize(ram.S, params); kwargs...)
+end
+
+function latent_scores_operator(::SemRegressionScores, implied::SemImply,
+                                A::AbstractMatrix, S::AbstractMatrix;
                                 alpha::Number = 0)
-    implied = imply(model)
     ram = implied.ram_matrices
     lv_inds = latent_var_indices(ram)
 
-    A = materialize(ram.A, params)
     lv_FA = ram.F * A[:, lv_inds]
 
-    S = materialize(ram.S, params)
     if alpha == 0
         lv_I_A⁻¹ = inv(I - A)[lv_inds, :]
         cov_lv = X_A_Xt(S, lv_I_A⁻¹)
@@ -56,19 +61,17 @@ function latent_scores_operator(::SemRegressionScores, model::SemLoss, params::A
     return cov_lv * lv_FA' * Σ⁻¹
 end
 
-function latent_scores_operator(::SemBartlettScores, model::SemLoss, params::AbstractVector;
+function latent_scores_operator(::SemBartlettScores, implied::SemImply,
+                                A::AbstractMatrix, S::AbstractMatrix;
                                 alpha::Number = 0)
-    implied = imply(model)
     ram = implied.ram_matrices
     lv_inds = latent_var_indices(ram)
-    A = materialize(ram.A, params)
     lv_FA = ram.F * A[:, lv_inds]
 
-    S = materialize(ram.S, params)
     obs_inds = observed_var_indices(ram)
     ov_S⁻¹ = inv(S[obs_inds, obs_inds])
-    lv_FA⨉ov_S⁻ = lv_FA' * ov_S⁻¹
-    cov_lv⁻¹ = lv_FA⨉ov_S⁻ * lv_FA
+    lv_FA⨉ov_S⁻¹ = lv_FA' * ov_S⁻¹
+    cov_lv⁻¹ = lv_FA⨉ov_S⁻¹ * lv_FA
     (alpha != 0) && (cov_lv += alpha * I)
     cov_lv = inv(cov_lv⁻¹)
 
@@ -85,19 +88,21 @@ function predict_latent_scores(method::SemScoresPredictMethod, model::SemLoss, p
     (alpha < 0) && throw(ArgumentError("The regularization parameter alpha must be non-negative"))
 
     implied = imply(model)
+    ram = implied.ram_matrices
     update!(EvaluationTargets(0.0, nothing, nothing), implied, params)
 
-    lv_scores_op = latent_scores_operator(method, model, params; alpha)
+    A = materialize(ram.A, params)
+    S = materialize(ram.S, params)
+    lv_inds = latent_var_indices(ram)
+    lv_scores_op = latent_scores_operator(method, implied, A, S; alpha)
 
     data = data.data .- (isnothing(data.obs_mean) ? mean(data.data, dims=1) : data.obs_mean')
     lv_scores = data * lv_scores_op'
 
+    # adjust the scores w.r.t the variable means
     if MeanStructure(implied) === HasMeanStructure
-        ram = implied.ram_matrices
-        lv_inds = latent_var_indices(ram)
-        A = materialize(ram.A, params)
-        lv_I_A⁻¹ = inv(I - A)[lv_inds, :]
         M = materialize(ram.M, params)
+        lv_I_A⁻¹ = inv(I - A)[lv_inds, :]
         lv_scores .+= (lv_I_A⁻¹ * M)'
     end
 
