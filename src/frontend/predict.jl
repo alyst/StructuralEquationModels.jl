@@ -1,3 +1,23 @@
+function predict(model::SemLoss, params::AbstractVector,
+                 scores::AbstractMatrix;
+                 score_vars::Union{AbstractVector, Nothing} = latent_var_indices(model),
+                 predict_vars::Union{AbstractVector, Nothing} = observed_var_indices(model))
+    ram = imply(model).ram_matrices
+    A = materialize(ram.A, params)
+    I_A⁻¹ = inv(I - A)
+    sv_I_A⁻¹ = !isnothing(score_vars) ? I_A⁻¹[:, score_vars] : I_A⁻¹
+    res = scores * sv_I_A⁻¹'
+    if MeanStructure(imply(model)) === HasMeanStructure
+        M = materialize(ram.M, params)
+        M[score_vars] .= 0 # intercepts already included in the scores
+        res .+= (I_A⁻¹ * M)'
+    end
+    if !isnothing(predict_vars)
+        res = res[:, predict_vars]
+    end
+    return res
+end
+
 abstract type SemScoresPredictMethod end
 
 struct SemRegressionScores <: SemScoresPredictMethod end
