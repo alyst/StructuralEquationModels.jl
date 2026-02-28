@@ -182,7 +182,13 @@ function em_step!(Σ::AbstractMatrix, μ::AbstractVector,
     mul!(Σ, μ, μ', -1, 1)
     μ .+= μ₀
 
-    isnothing(min_eigval) || copyto!(Σ, trunc_eigvals(Σ, min_eigval))
+    StatsBase._symmetrize!(Σ) # correct numerical errors
+    if !isnothing(min_eigval)
+        # try to fix non-positive-definite Σ
+        reg_Σ = trunc_eigvals(Σ, min_eigval)
+        # if no truncation was done, reg_Σ will be the same object
+        (reg_Σ === Σ) || copyto!(Σ, reg_Σ)
+    end
     # ridge Σ
     # while !isposdef(Σ)
     #     Σ += 0.5I
