@@ -91,7 +91,7 @@ Xt_X(X::AbstractMatrix) =
     Xt_X!(Matrix{eltype(X)}(undef, size(X, 2), size(X, 2)), X)
 
 X_Xt(X::Union{AbstractMatrix, AbstractVector}) =
-  Xt_X!(Matrix{eltype(X)}(undef, size(X, 1), size(X, 1)), X)
+    X_Xt!(Matrix{eltype(X)}(undef, size(X, 1), size(X, 1)), X)
 
 # calculate Xᵀ⋅A⋅X
 # FIXME: use PDMats.jl when its sparse matrix support is refactored
