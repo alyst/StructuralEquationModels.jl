@@ -25,6 +25,69 @@ function predict(model::SemLoss, params::AbstractVector,
     return res
 end
 
+# internal helper for calculating latent scores
+# a callable object that recieves centered data matrix
+# and returns the corresponding latent scores
+abstract type ScoresSolver end
+
+# solver that uses QR decomposition for numerical stability
+struct QRScoresSolver{F, C} <: ScoresSolver
+    factorization::F
+    obs_chol::C
+    extra_rhs_rows::Int
+end
+
+function QRScoresSolver(
+    loadings::AbstractMatrix, obs_cov::AbstractMatrix;
+    prior_cov::Union{AbstractMatrix, Nothing} = nothing,
+    alpha::Number = 0
+)
+    nobs, nlat = size(loadings)
+    T = float(promote_type(eltype(loadings), eltype(obs_cov),
+                           isnothing(prior_cov) ? Float64 : eltype(prior_cov), typeof(alpha)))
+
+    Λ = Matrix{T}(loadings)
+    Ψ_chol = cholesky(Symmetric(Matrix{T}(obs_cov)))
+    I_lat = Matrix{T}(I, nlat, nlat)
+
+    aug_lhs = Matrix{T}[Matrix(Ψ_chol.U' \ Λ)]
+    extra_rhs_rows = 0
+
+    if !isnothing(prior_cov)
+        Φ_chol = cholesky(Symmetric(Matrix{T}(prior_cov)))
+        push!(aug_lhs, Matrix(Φ_chol.U' \ I_lat))
+        extra_rhs_rows += nlat
+    end
+
+    if alpha != 0
+        push!(aug_lhs, sqrt(T(alpha)) * I_lat)
+        extra_rhs_rows += nlat
+    end
+
+    return QRScoresSolver(qr(reduce(vcat, aug_lhs), ColumnNorm()), Ψ_chol, extra_rhs_rows)
+end
+
+function (solver::QRScoresSolver)(data::AbstractMatrix)
+    T = float(promote_type(eltype(data), eltype(solver.obs_chol)))
+    whitened_t = Matrix{T}((Matrix{T}(data) / solver.obs_chol.U)')
+    rhs = if solver.extra_rhs_rows == 0
+        whitened_t
+    else
+        vcat(whitened_t, zeros(T, solver.extra_rhs_rows, size(data, 1)))
+    end
+    return permutedims(solver.factorization \ rhs)
+end
+
+struct WhitenedScoresSolver{S<:ScoresSolver, C} <: ScoresSolver
+    base_solver::S
+    score_cov_chol::C
+end
+
+function (solver::WhitenedScoresSolver)(data::AbstractMatrix)
+    base_scores = solver.base_solver(data)
+    return base_scores / solver.score_cov_chol.U
+end
+
 """
     SemScoresPredictMethod
 
@@ -43,6 +106,20 @@ See the concrete type docstrings for the mathematical definitions and interpreta
 each method.
 """
 abstract type SemScoresPredictMethod end
+
+"""
+    latent_scores_solver(
+        method::SemScoresPredictMethod,
+        implied::SemImply,
+        latent_vars::AbstractVector,
+        A::AbstractMatrix, S::AbstractMatrix,
+        lv_I_A⁻¹::Union{AbstractMatrix, Nothing} = nothing;
+        alpha::Number = 0
+    ) -> ScoresSolver
+
+Create a solver for the latent scores based on the specified prediction method.
+"""
+latent_scores_solver
 
 raw"""
     SemRegressionScores
@@ -85,6 +162,24 @@ an augmented QR solve instead of explicitly forming the normal equations.
 """
 struct SemRegressionScores <: SemScoresPredictMethod end
 
+function latent_scores_solver(::SemRegressionScores, implied::SemImply,
+                              latent_vars::AbstractVector,
+                              A::AbstractMatrix, S::AbstractMatrix,
+                              lv_I_A⁻¹::Union{AbstractMatrix, Nothing} = nothing;
+                              alpha::Number = 0)
+    ram = implied.ram_matrices
+    lv_FA = Matrix(ram.F * A[:, latent_vars])
+    if isnothing(lv_I_A⁻¹)
+        I_A = Matrix{eltype(A)}(I, size(A, 1), size(A, 2)) - A
+        lv_I_A⁻¹ = inverse_rows(I_A, latent_vars)
+    end
+    cov_lv = X_A_Xt(S, lv_I_A⁻¹)
+
+    obs_inds = observed_var_indices(ram)
+    obs_cov = Matrix(S[obs_inds, obs_inds])
+    return QRScoresSolver(lv_FA, obs_cov; prior_cov = cov_lv, alpha)
+end
+
 raw"""
     SemBartlettScores
 
@@ -120,6 +215,21 @@ augmented QR solve instead of explicitly forming the normal equations.
     https://stats.oarc.ucla.edu/spss/seminars/introduction-to-factor-analysis/
 """
 struct SemBartlettScores <: SemScoresPredictMethod end
+
+function latent_scores_solver(
+    ::SemBartlettScores, implied::SemImply,
+    latent_vars::AbstractVector,
+    A::AbstractMatrix, S::AbstractMatrix,
+    lv_I_A⁻¹::Union{AbstractMatrix, Nothing} = nothing;
+    alpha::Number = 0
+)
+    ram = implied.ram_matrices
+    lv_FA = Matrix(ram.F * A[:, latent_vars])
+
+    obs_inds = observed_var_indices(ram)
+    obs_cov = Matrix(S[obs_inds, obs_inds])
+    return QRScoresSolver(lv_FA, obs_cov; alpha)
+end
 
 raw"""
         SemAndersonRubinScores
@@ -193,6 +303,22 @@ coordinates with identity model-implied covariance.
 """
 struct SemAndersonRubinScores <: SemScoresPredictMethod end
 
+function latent_scores_solver(
+    ::SemAndersonRubinScores, implied::SemImply,
+    latent_vars::AbstractVector,
+    A::AbstractMatrix, S::AbstractMatrix,
+    lv_I_A⁻¹::Union{AbstractMatrix, Nothing} = nothing;
+    alpha::Number = 0
+)
+    nobs = nobserved_vars(implied)
+
+    base_solver = latent_scores_solver(SemBartlettScores(), implied, latent_vars, A, S; alpha)
+    base_op = permutedims(base_solver(Matrix{eltype(S)}(I, nobs, nobs)))
+
+    score_cov = Symmetric(X_A_Xt(implied.Σ, base_op))
+    return WhitenedScoresSolver(base_solver, cholesky!(score_cov))
+end
+
 function SemScoresPredictMethod(method::Symbol)
     if method == :regression
         return SemRegressionScores()
@@ -213,59 +339,14 @@ predict_latent_scores(method::SemScoresPredictMethod, fit::SemFit,
                       data::SemObserved = observed(sem_term(fit.model))) =
     predict_latent_scores(method, loss(sem_term(fit.model)), fit.solution, data)
 
-function inv_cov!(A::AbstractMatrix)
-    if istril(A)
-        A = LowerTriangular(A)
-    elseif istriu(A)
-        A = UpperTriangular(A)
-    else
+function inverse_rows(A::AbstractMatrix, row_inds::AbstractVector{<:Integer})
+    n = size(A, 1)
+    n == size(A, 2) || throw(DimensionMismatch("A must be square."))
+    rhs = zeros(eltype(A), n, length(row_inds))
+    for (j, row_ix) in pairs(row_inds)
+        rhs[row_ix, j] = one(eltype(A))
     end
-    A_chol = Cholesky(A)
-    return inv!(A_chol)
-end
-
-function latent_scores_operator(::Type{T}, model::SemLoss,
-                                latent_vars::AbstractVector, params::AbstractVector;
-                                kwargs...
-) where T <: SemScoresPredictMethod
-    ram = imply(model).ram_matrices
-    latent_scores_operator(T, imply(model), latent_vars, materialize(ram.A, params), materialize(ram.S, params); kwargs...)
-end
-
-function latent_scores_operator(::SemRegressionScores, implied::SemImply,
-                                latent_vars::AbstractVector,
-                                A::AbstractMatrix, S::AbstractMatrix;
-                                alpha::Number = 0)
-    ram = implied.ram_matrices
-
-    lv_FA = ram.F * A[:, latent_vars]
-
-    if alpha == 0
-        lv_I_A⁻¹ = inv(I - A)[latent_vars, :]
-        cov_lv = X_A_Xt(S, lv_I_A⁻¹)
-    else
-        cov_lv = inv(Xt_A_X(inv(S), I - A) + alpha * I)[latent_vars, latent_vars]
-    end
-    Σ = implied.Σ
-    Σ⁻¹ = inv(Σ)
-    return cov_lv * lv_FA' * Σ⁻¹
-end
-
-function latent_scores_operator(::SemBartlettScores, implied::SemImply,
-                                latent_vars::AbstractVector,
-                                A::AbstractMatrix, S::AbstractMatrix;
-                                alpha::Number = 0)
-    ram = implied.ram_matrices
-    lv_FA = ram.F * A[:, latent_vars]
-
-    obs_inds = observed_var_indices(ram)
-    ov_S⁻¹ = inv(S[obs_inds, obs_inds])
-    lv_FA⨉ov_S⁻¹ = lv_FA' * ov_S⁻¹
-    cov_lv⁻¹ = lv_FA⨉ov_S⁻¹ * lv_FA
-    (alpha != 0) && (cov_lv += alpha * I)
-    cov_lv = inv(cov_lv⁻¹)
-
-    return cov_lv * lv_FA⨉ov_S⁻¹
+    return copy((A' \ rhs)')
 end
 
 raw"""
@@ -302,15 +383,16 @@ function predict_latent_scores(method::SemScoresPredictMethod, model::SemLoss, p
 
     A = materialize(ram.A, params)
     S = materialize(ram.S, params)
-    lv_scores_op = latent_scores_operator(method, implied, lv_inds, A, S; alpha)
+    I_A = Matrix{eltype(A)}(I, size(A, 1), size(A, 2)) - A
+    lv_I_A⁻¹ = inverse_rows(I_A, lv_inds)
+    lv_scores_solver = latent_scores_solver(method, implied, lv_inds, A, S, lv_I_A⁻¹; alpha = alpha)
 
-    data = data.data .- (isnothing(data.obs_mean) ? mean(data.data, dims=1) : data.obs_mean')
-    lv_scores = data * lv_scores_op'
+    centered_data = data.data .- (isnothing(data.obs_mean) ? mean(data.data, dims=1) : data.obs_mean')
+    lv_scores = lv_scores_solver(centered_data)
 
     # adjust the scores w.r.t the variable means
     if MeanStructure(implied) === HasMeanStructure
         M = materialize(ram.M, params)
-        lv_I_A⁻¹ = inv(I - A)[lv_inds, :]
         lv_scores .+= (lv_I_A⁻¹ * M)'
     end
 
