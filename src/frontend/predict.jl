@@ -173,7 +173,7 @@ explicitly forming the normal equations.
 """
 struct SemRegressionScores <: SemScoresPredictMethod end
 
-function latent_scores_solver_qr(
+function QRScoresSolver(
     implied::SemImply,
     latent_vars::AbstractVector,
     A::AbstractMatrix,
@@ -213,7 +213,7 @@ latent_scores_solver(
     lv_I_A⁻¹::Union{AbstractMatrix, Nothing} = nothing;
     alpha::Number = 0,
     prior_cov_alpha::Union{Number, Nothing} = nothing,
-) = latent_scores_solver_qr(
+) = QRScoresSolver(
     implied, latent_vars, A, S, lv_I_A⁻¹;
     alpha, prior_cov_alpha = something(prior_cov_alpha, 1)
 )
@@ -264,7 +264,7 @@ latent_scores_solver(
     lv_I_A⁻¹::Union{AbstractMatrix, Nothing} = nothing;
     alpha::Number = 0,
     prior_cov_alpha::Nothing = nothing,
-) = latent_scores_solver_qr(
+) = QRScoresSolver(
     implied, latent_vars, A, S, lv_I_A⁻¹;
     alpha, prior_cov_alpha = 0
 )
@@ -353,8 +353,8 @@ function latent_scores_solver(
 )
     nobs = nobserved_vars(implied)
 
-    base_solver = latent_scores_solver_qr(implied, latent_vars, A, S, lv_I_A⁻¹;
-                                          alpha, prior_cov_alpha = 0)
+    base_solver = QRScoresSolver(implied, latent_vars, A, S, lv_I_A⁻¹;
+                                 alpha, prior_cov_alpha = 0)
     base_op = permutedims(base_solver(Matrix{eltype(S)}(I, nobs, nobs)))
 
     score_cov = Symmetric(X_A_Xt(implied.Σ, base_op))
