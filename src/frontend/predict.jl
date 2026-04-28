@@ -437,10 +437,10 @@ function predict_latent_scores(
     length(params) == nparams(model) ||
         throw(DimensionMismatch("The length of parameters vector ($(length(params))) does not match the number of parameters in the model ($(nparams(model)))"))
     alpha >= 0 || throw(ArgumentError("The regularization parameter alpha must be non-negative"))
-    if method isa Union{SemBartlettScores, SemAndersonRubinScores}
-        isnothing(prior_cov_alpha) || throw(ArgumentError(
-            "prior_cov_alpha is only supported for regression scores and must be omitted or nothing for $(typeof(method))"
-        ))
+    if method isa Union{SemBartlettScores, SemAndersonRubinScores} &&
+        !isnothing(prior_cov_alpha)
+        @warn "prior_cov_alpha is only supported for regression scores, ignored for $(typeof(method))"
+        prior_cov_alpha = nothing
     end
     isnothing(prior_cov_alpha) || prior_cov_alpha >= 0 ||
         throw(ArgumentError("The regularization parameter prior_cov_alpha must be non-negative"))
