@@ -191,7 +191,9 @@ function latent_scores_solver_qr(
             lv_I_A⁻¹ = inverse_rows(I_A, latent_vars)
         end
         # postpone scaling by prior_cov_alpha until the Cholesky factor
-        prior_cov = X_A_Xt(S, lv_I_A⁻¹)
+        prior_cov = SEM.trunc_eigvals(
+            Symmetric(X_A_Xt(S, lv_I_A⁻¹)), 1e-6,
+            mtx_label = "prior_cov", verbose = false)
     else
         prior_cov = nothing
     end
