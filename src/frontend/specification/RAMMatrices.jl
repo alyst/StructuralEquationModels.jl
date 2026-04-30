@@ -37,7 +37,7 @@ latent_var_indices(ram::RAMMatrices) =
 # observed variables, if order=:rows, the order is as they appear in ram.F rows
 # if order=:columns, the order is as they appear in the comined variables list (ram.F columns)
 function observed_vars(ram::RAMMatrices; order::Symbol = :rows)
-    order ∈ [:rows, :columns] || throw(ArgumentError("order kwarg should be :rows or :cols"))
+    order ∈ [:rows, :columns] || throw(ArgumentError("order kwarg should be :rows or :columns"))
     if isnothing(ram.colnames)
         @warn "Your RAMMatrices do not contain column names. Please make sure the order of variables in your data is correct!"
         return nothing
