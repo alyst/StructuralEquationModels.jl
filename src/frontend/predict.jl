@@ -457,7 +457,7 @@ returned transform for the currently implemented score methods.
 function score_basis_transform(
     method::SemScoresPredictMethod,
     model::SemLoss,
-    params::Union{AbstractVector, Nothing} = nothing;
+    params::AbstractVector;
     latent_vars::Union{AbstractVector, Nothing} = nothing,
     alpha::Number = 0,
     prior_cov_alpha::Union{Number, Nothing} = nothing,
@@ -478,9 +478,7 @@ function score_basis_transform(
         return SemVariablesTransform(lvars, I, I)
     end
 
-    if !isnothing(params)
-        update!(EvaluationTargets(0.0, nothing, nothing), implied, params)
-    end
+    update!(EvaluationTargets(0.0, nothing, nothing), implied, params)
 
     A = materialize(ram.A, params)
     S = materialize(ram.S, params)
