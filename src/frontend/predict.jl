@@ -507,27 +507,15 @@ score_basis_transform(
     method::Symbol,
     model::SemLoss,
     params::Union{AbstractVector, Nothing} = nothing;
-    latent_vars::Union{AbstractVector, Nothing} = nothing,
-    alpha::Number = 0,
-    prior_cov_alpha::Union{Number, Nothing} = nothing,
-) = score_basis_transform(
-    SemScoresPredictMethod(method),
-    model,
-    params;
-    latent_vars,
-    alpha,
-    prior_cov_alpha,
-)
+    kwargs...
+) = score_basis_transform(SemScoresPredictMethod(method), model, params; kwargs...)
 
 predict_latent_scores(
     fit::SemFit,
     data::SemObserved = observed(sem_term(fit.model));
     method::Symbol = :regression,
-    latent_vars::Union{AbstractVector, Nothing} = nothing,
-    alpha::Number = 0,
-    prior_cov_alpha::Union{Number, Nothing} = nothing,
-) = predict_latent_scores(SemScoresPredictMethod(method), fit, data;
-                          latent_vars, alpha, prior_cov_alpha)
+    kwargs...
+) = predict_latent_scores(SemScoresPredictMethod(method), fit, data; kwargs...)
 
 predict_latent_scores(
     method::SemScoresPredictMethod,
@@ -621,8 +609,5 @@ predict_latent_scores(
     params::AbstractVector,
     data::SemObserved = observed(model);
     method::Symbol = :regression,
-    latent_vars::Union{AbstractVector, Nothing} = nothing,
-    alpha::Number = 0,
-    prior_cov_alpha::Union{Number, Nothing} = nothing,
-) = predict_latent_scores(SemScoresPredictMethod(method), model, params, data;
-                          latent_vars, alpha, prior_cov_alpha)
+    kwargs...
+) = predict_latent_scores(SemScoresPredictMethod(method), model, params, data; kwargs...)
