@@ -461,6 +461,7 @@ function score_basis_transform(
     latent_vars::Union{AbstractVector, Nothing} = nothing,
     alpha::Number = 0,
     prior_cov_alpha::Union{Number, Nothing} = nothing,
+    min_eigval::Union{Number, Nothing} = nothing,
 )
     length(params) == nparams(model) || throw(DimensionMismatch(
         "The length of parameters vector ($(length(params))) does not match the number of parameters in the model ($(nparams(model))).",
@@ -483,6 +484,9 @@ function score_basis_transform(
     A = materialize(ram.A, params)
     S = materialize(ram.S, params)
     T = float(promote_type(eltype(A), eltype(S), typeof(alpha)))
+    if !isnothing(min_eigval)
+        S = SEM.trunc_eigvals(S, min_eigval, mtx_label = "S")
+    end
 
     I_A = Matrix{eltype(A)}(I, size(A, 1), size(A, 2)) - A
     lv_I_A⁻¹ = inverse_rows(I_A, lvar_inds)
@@ -490,10 +494,13 @@ function score_basis_transform(
                                  alpha, prior_cov_alpha = 0)
     nobs = nobserved_vars(implied)
     base_op = permutedims(base_solver(Matrix{T}(I, nobs, nobs)))
-    score_cov = Symmetric(X_A_Xt(implied.Σ, base_op))
-    score_cov_chol = cholesky!(score_cov)
+    scores_cov = Symmetric(X_A_Xt(implied.Σ, base_op))
+    if !isnothing(min_eigval)
+        scores_cov = SEM.trunc_eigvals(scores_cov, min_eigval, mtx_label = "S")
+    end
+    scores_cov_chol = cholesky!(scores_cov)
 
-    return SemVariablesTransform(lvars, I / score_cov_chol.U, score_cov_chol.U)
+    return SemVariablesTransform(lvars, I / scores_cov_chol.U, scores_cov_chol.U)
 end
 
 score_basis_transform(
