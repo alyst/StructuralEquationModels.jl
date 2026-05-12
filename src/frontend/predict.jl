@@ -39,7 +39,7 @@ end
 
 function QRScoresSolver(
     loadings::AbstractMatrix,
-    obs_cov::AbstractMatrix;
+    obs_resid_cov::AbstractMatrix;
     prior_cov::Union{AbstractMatrix, Nothing} = nothing,
     prior_cov_alpha::Number = 1,
     alpha::Number = 0,
@@ -49,13 +49,15 @@ function QRScoresSolver(
 
     _, nlat = size(loadings)
     T = float(promote_type(
-        eltype(loadings), eltype(obs_cov),
+        eltype(loadings), eltype(obs_resid_cov),
         isnothing(prior_cov) ? Float64 : eltype(prior_cov),
         typeof(prior_cov_alpha), typeof(alpha),
     ))
 
     Λ = Matrix{T}(loadings)
-    Ψ_chol = cholesky(Symmetric(Matrix{T}(obs_cov)))
+    # The QR objective for regression/Bartlett scores is weighted by the
+    # observed residual covariance Ψ, not by the total observed covariance Σ.
+    Ψ_chol = cholesky(Symmetric(Matrix{T}(obs_resid_cov)))
     I_lat = Matrix{T}(I, nlat, nlat)
 
     aug_lhs = Matrix{T}[Matrix(Ψ_chol.U' \ Λ)]
@@ -253,8 +255,11 @@ function QRScoresSolver(
     end
 
     obs_inds = observed_var_indices(ram)
-    obs_cov = Matrix(S[obs_inds, obs_inds])
-    return QRScoresSolver(lv_FA, obs_cov;
+    # In RAM, the observed block of S stores the residual covariance Ψ. The
+    # total observed covariance Σ is represented separately by implied.Σ and is
+    # only needed later for Anderson-Rubin whitening.
+    obs_resid_cov = Matrix(S[obs_inds, obs_inds])
+    return QRScoresSolver(lv_FA, obs_resid_cov;
                           prior_cov, prior_cov_alpha, alpha)
 end
 
