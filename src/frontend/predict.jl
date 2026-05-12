@@ -509,6 +509,13 @@ function score_basis_transform(
 end
 
 score_basis_transform(
+    model::SemLoss,
+    params::AbstractVector;
+    method::Union{Symbol, SemScoresPredictMethod} = :regression,
+    kwargs...
+) = score_basis_transform(method, model, params; kwargs...)
+
+score_basis_transform(
     method::Symbol,
     model::SemLoss,
     params::Union{AbstractVector, Nothing} = nothing;
