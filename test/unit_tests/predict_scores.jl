@@ -1,4 +1,4 @@
-using StructuralEquationModels, Test, LinearAlgebra, Statistics
+using StructuralEquationModels, Test, LinearAlgebra, Statistics, Logging
 
 SEM = StructuralEquationModels
 
@@ -136,14 +136,31 @@ end
                                                   method = :Bartlett,
                                                   latent_vars = lv_vars,
                                                   alpha = 0.0)
-    @test_throws ArgumentError SEM.predict_latent_scores(model, params, data;
-                                                         method = :Bartlett,
-                                                         latent_vars = lv_vars,
-                                                         prior_cov_alpha = 0.1)
-    @test_throws ArgumentError SEM.predict_latent_scores(model, params, data;
-                                                         method = :AndersonRubin,
-                                                         latent_vars = lv_vars,
-                                                         prior_cov_alpha = 0.1)
+    @test_logs (:warn, r"prior_cov_alpha is only supported for regression scores") begin
+        SEM.predict_latent_scores(model, params, data;
+                                  method = :Bartlett,
+                                  latent_vars = lv_vars,
+                                  prior_cov_alpha = 0.1)
+    end
+    bartlett_scores_warn = with_logger(NullLogger()) do
+        SEM.predict_latent_scores(model, params, data;
+                                  method = :Bartlett,
+                                  latent_vars = lv_vars,
+                                  prior_cov_alpha = 0.1)
+    end
+    @test bartlett_scores_warn ≈ bartlett_scores_0 rtol = 1e-10 atol = 1e-10
+    @test_logs (:warn, r"prior_cov_alpha is only supported for regression scores") begin
+        SEM.predict_latent_scores(model, params, data;
+                                  method = :AndersonRubin,
+                                  latent_vars = lv_vars,
+                                  prior_cov_alpha = 0.1)
+    end
+    ar_scores_warn = with_logger(NullLogger()) do
+        SEM.predict_latent_scores(model, params, data;
+                                  method = :AndersonRubin,
+                                  latent_vars = lv_vars,
+                                  prior_cov_alpha = 0.1)
+    end
     regression_scores_bartlett = SEM.predict_latent_scores(model, params, data;
                                                            method = :regression,
                                                            latent_vars = lv_vars,
@@ -187,5 +204,6 @@ end
                                             method = :AndersonRubin,
                                             latent_vars = lv_vars,
                                             alpha = 0.0)
+    @test ar_scores_warn ≈ ar_scores_0 rtol = 1e-10 atol = 1e-10
     @test !isapprox(ar_scores_0, bartlett_scores_0; rtol = 1e-6, atol = 1e-6)
 end
