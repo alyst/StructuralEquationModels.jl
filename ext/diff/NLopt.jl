@@ -116,4 +116,3 @@ SEM.options(optimizer::SemOptimizerNLopt) = optimizer.options
 local_options(optimizer::SemOptimizerNLopt) = optimizer.local_options
 equality_constraints(optimizer::SemOptimizerNLopt) = optimizer.equality_constraints
 inequality_constraints(optimizer::SemOptimizerNLopt) = optimizer.inequality_constraints
-
