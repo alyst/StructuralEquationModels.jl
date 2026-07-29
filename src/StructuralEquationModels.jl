@@ -20,11 +20,11 @@ include("objective_gradient_hessian.jl")
 include("additional_functions/commutation_matrix.jl")
 include("additional_functions/quad.jl")
 include("additional_functions/sparse_utils.jl")
+include("additional_functions/params_array.jl")
 
 # fitted objects
 include("frontend/fit/SemFit.jl")
 # specification of models
-include("additional_functions/params_array.jl")
 include("frontend/specification/ParameterTable.jl")
 include("frontend/specification/RAMMatrices.jl")
 include("frontend/specification/EnsembleParameterTable.jl")
