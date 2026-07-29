@@ -2,6 +2,7 @@ module StructuralEquationModels
 
 using LinearAlgebra, Optim,
     NLSolversBase, Statistics, StatsBase, SparseArrays, Symbolics,
+    TransformVariables,
     FiniteDiff, PrettyTables,
     Distributions, StenoGraphs, LazyArtifacts, DelimitedFiles,
     DataFrames,
@@ -21,6 +22,7 @@ include("additional_functions/commutation_matrix.jl")
 include("additional_functions/quad.jl")
 include("additional_functions/sparse_utils.jl")
 include("additional_functions/params_array.jl")
+include("additional_functions/param_transforms.jl")
 
 # fitted objects
 include("frontend/fit/SemFit.jl")
@@ -95,6 +97,9 @@ export  ParamsArray, ParamsMatrix, ParamsVector,
             param_occurences, param_occurences_range,
             materialize, materialize!,
             sparse_gradient, sparse_gradient!, sparse_materialize,
+        ParamTransforms, CovarianceTransforms,
+            param_transforms, merge_param_transforms,
+            transform_params, inverse_transform_params,
         AbstractSem,
             Sem, SemFiniteDiff,
         MeanStructure, NoMeanStructure, HasMeanStructure,

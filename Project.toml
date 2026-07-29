@@ -25,6 +25,7 @@ StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 StenoGraphs = "78862bba-adae-4a83-bb4d-33c106177f81"
 SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
+TransformVariables = "84d833dd-6860-57f9-a1a7-6da5db126cff"
 
 [weakdeps]
 BlackBoxOptim = "a134a8b2-14d6-55f6-9291-3336d3ab0209"
@@ -55,6 +56,7 @@ StatsBase = "0.33, 0.34"
 StenoGraphs = "0.2, 0.3, 0.4"
 SymbolicUtils = "1.4 - 1.5, 1.7, 2, 3, 4"
 Symbolics = "4, 5, 6, 7"
+TransformVariables = "0.8.26"
 julia = "1.9"
 
 [extras]

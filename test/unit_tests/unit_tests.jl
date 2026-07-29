@@ -5,3 +5,5 @@ using Test, SafeTestsets
 @safetestset "SemObs" begin include("data_input_formats.jl") end
 
 @safetestset "Predict Scores" begin include("predict_scores.jl") end
+
+@safetestset "Param Transforms" begin include("param_transforms.jl") end
