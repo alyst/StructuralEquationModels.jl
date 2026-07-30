@@ -8,7 +8,7 @@ start_parameter_table(model::SemLoss;
     start_parameter_table(partable)
 
 function start_parameter_table(partable::ParameterTable)
-    start_vals = zeros(eltype(partable.columns.start), nparams(partable))
+    start_params = zeros(eltype(partable.columns.start), nparams(partable))
     param_indices = Dict(param => i for (i, param) in enumerate(params(partable)))
 
     for (param, startval) in zip(partable.columns.param,
@@ -16,14 +16,14 @@ function start_parameter_table(partable::ParameterTable)
         (param == :const) && continue
         par_ind = get(param_indices, param, nothing)
         if !isnothing(par_ind)
-            isfinite(startval) && (start_vals[par_ind] = startval)
+            isfinite(startval) && (start_params[par_ind] = startval)
         else
             throw(ErrorException("Parameter $(param) not found in the model."))
         end
     end
 
-    return start_vals
+    return start_params
 end
 
 start_parameter_table(model::AbstractSem; kwargs...) =
-    start_values(start_parameter_table, model; kwargs...)
+    start_params(start_parameter_table, model; kwargs...)

@@ -44,7 +44,7 @@ function start_fabin3(ram_matrices::RAMMatrices,
         throw(ArgumentError("RAM has no meanstructure, but observed means provided."))
     end
 
-    start_val = zeros(n_par)
+    start_params = zeros(n_par)
     F_var2obs = Dict(i => F.rowval[F.colptr[i]]
                      for i in axes(F, 2) if isobserved_var(ram_matrices, i))
     @assert length(F_var2obs) == size(F, 1)
@@ -75,7 +75,7 @@ function start_fabin3(ram_matrices::RAMMatrices,
             if (to == from) # covariances start with 0
                 # half of observed variance for observed, 0.05 for latent
                 obs = get(F_var2obs, to, nothing)
-                start_val[j] = !isnothing(obs) ? Σ[obs, obs]/2 : 0.05
+                start_params[j] = !isnothing(obs) ? Σ[obs, obs]/2 : 0.05
                 break # j-th parameter initialized
             end
         end
@@ -146,7 +146,7 @@ function start_fabin3(ram_matrices::RAMMatrices,
 
             for (indicator, param) in indicators
                 if (indicator != ref) && (param > 0)
-                    start_val[param] = calculate_lambda(ref, indicator, indicator_obs)
+                    start_params[param] = calculate_lambda(ref, indicator, indicator_obs)
                 end
             end
         # no reference indicator:
@@ -172,7 +172,7 @@ function start_fabin3(ram_matrices::RAMMatrices,
 
             for (j, (_, param)) ∈ enumerate(indicators)
                 if param > 0
-                    start_val[param] = λ[j]
+                    start_params[param] = λ[j]
                 end
             end
         end
@@ -185,13 +185,13 @@ function start_fabin3(ram_matrices::RAMMatrices,
             if !isempty(M_ind)
                 obs = get(F_var2obs, M_ind[1], nothing)
                 if !isnothing(obs)
-                    start_val[j] = μ[obs]
+                    start_params[j] = μ[obs]
                 end # latent means stay 0
             end
         end
     end
 
-    return start_val
+    return start_params
 end
 
 function is_in_Λ(ind_vec, F_ind)
@@ -199,4 +199,4 @@ function is_in_Λ(ind_vec, F_ind)
 end
 
 # ensembles
-start_fabin3(model::AbstractSem; kwargs...) = start_values(start_fabin3, model; kwargs...)
+start_fabin3(model::AbstractSem; kwargs...) = start_params(start_fabin3, model; kwargs...)

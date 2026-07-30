@@ -12,11 +12,11 @@ SEM.n_iterations(res::NLoptResult) = res.problem.numevals
 SEM.convergence(res::NLoptResult) = res.result[3]
 
 # construct SemFit from fitted NLopt object
-function SemFit_NLopt(optimization_result, model::AbstractSem, start_val, opt)
+function SemFit_NLopt(optimization_result, model::AbstractSem, start_params, opt)
     return SemFit(
         optimization_result[1],
         optimization_result[2],
-        start_val,
+        start_params,
         model,
         NLoptResult(optimization_result, opt)
     )

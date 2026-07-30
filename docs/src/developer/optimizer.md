@@ -39,18 +39,18 @@ Now comes a part that is a little bit more complicated: We need to write methods
 ```julia
 function sem_fit(
         model::AbstractSemSingle{O, I, L, D}; 
-        start_val = start_val, 
+        start_params = start_params,
         kwargs...) where {O, I, L, D <: SemOptimizerOptim}
     
-    if !isa(start_val, Vector)
-        start_val = start_val(model; kwargs...)
+    if !isa(start_params, AbstractVector)
+        start_params = start_params(model; kwargs...)
     end
 
     optimization_result = ...
 
     ...
 
-    return SemFit(minimum, minimizer, start_val, model, optimization_result)
+    return SemFit(minimum, minimizer, start_params, model, optimization_result)
 end
 ```
 
@@ -61,11 +61,11 @@ If we want our type to also work with `SemEnsemble` models, we also have to prov
 ```julia
 function sem_fit(
         model::SemEnsemble{N, T , V, D, S}; 
-        start_val = start_val, 
+        start_params = start_params,
         kwargs...) where {N, T, V, D <: SemOptimizerOptim, S}
 
-    if !isa(start_val, Vector)
-        start_val = start_val(model; kwargs...)
+    if !isa(start_params, AbstractVector)
+        start_params = start_params(model; kwargs...)
     end
 
 
@@ -73,7 +73,7 @@ function sem_fit(
 
     ...
 
-    return SemFit(minimum, minimizer, start_val, model, optimization_result)
+    return SemFit(minimum, minimizer, start_params, model, optimization_result)
 
 end
 ```

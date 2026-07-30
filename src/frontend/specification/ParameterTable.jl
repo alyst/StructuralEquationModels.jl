@@ -324,28 +324,30 @@ update_estimate!(partable::AbstractParameterTable, sem_fit::SemFit) =
 # update starting values -------------------------------------------------------------------
 """
     update_start!(partable::AbstractParameterTable, sem_fit::SemFit)
-    update_start!(partable::AbstractParameterTable, model::AbstractSem, start_val; kwargs...)
+    update_start!(partable::AbstractParameterTable, model::AbstractSem,
+                  start_params; kwargs...)
 
-Write starting values from `sem_fit` or `start_val` to the `:estimate` column of `partable`.
+Write starting parameter values from `sem_fit` or `start_params` to the
+`:estimate` column of `partable`.
 
 # Arguments
-- `start_val`: either a vector of starting values or a function to compute starting values
-    from `model`
-- `kwargs...`: are passed to `start_val`
+- `start_params`: either a vector of starting parameter values or a
+    function to compute them from `model`
+- `kwargs...`: are passed to the starting-parameter function
 """
 update_start!(partable::AbstractParameterTable, sem_fit::SemFit) =
-    update_partable!(partable, :start, params(sem_fit), sem_fit.start_val,
+    update_partable!(partable, :start, params(sem_fit), start_params(sem_fit),
                      partable.columns.value_fixed)
 
 function update_start!(
         partable::AbstractParameterTable,
         model::AbstractSem,
-        start_val;
+        start_params;
         kwargs...)
-    if !(start_val isa Vector)
-        start_val = start_val(model; kwargs...)
+    if !(start_params isa AbstractVector)
+        start_params = start_params(model; kwargs...)
     end
-    return update_partable!(partable, :start, params(model), start_val)
+    return update_partable!(partable, :start, params(model), start_params)
 end
 
 # update partable standard errors ----------------------------------------------------------

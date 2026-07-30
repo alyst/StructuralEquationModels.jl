@@ -3,11 +3,11 @@
 function SemFit(
         optimization_result::Optim.MultivariateOptimizationResults,
         model::AbstractSem,
-        start_val)
+        start_params)
     return SemFit(
         optimization_result.minimum,
         optimization_result.minimizer,
-        start_val,
+        start_params,
         model,
         optimization_result
     )

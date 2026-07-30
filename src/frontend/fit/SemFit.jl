@@ -9,7 +9,7 @@ Fitted structural equation model.
 # Interfaces
 - `minimum(::SemFit)` -> minimum objective value
 - `solution(::SemFit)` -> parameter estimates
-- `start_val(::SemFit)` -> starting values
+- `start_params(::SemFit)` -> starting parameter values
 - `model(::SemFit)`
 - `optimization_result(::SemFit)`
 
@@ -20,7 +20,7 @@ Fitted structural equation model.
 mutable struct SemFit{Mi, So, St, Mo, O}
     minimum::Mi
     solution::So
-    start_val::St
+    start_params::St
     model::Mo
     optimization_result::O
 end
@@ -65,7 +65,7 @@ end
 # access fields
 minimum(sem_fit::SemFit) = sem_fit.minimum
 solution(sem_fit::SemFit) = sem_fit.solution
-start_val(sem_fit::SemFit) = sem_fit.start_val
+start_params(sem_fit::SemFit) = sem_fit.start_params
 model(sem_fit::SemFit) = sem_fit.model
 optimization_result(sem_fit::SemFit) = sem_fit.optimization_result
 

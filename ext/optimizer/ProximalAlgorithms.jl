@@ -8,22 +8,22 @@ end
 function SEM.sem_fit(
     optim::SemOptimizerProximal,
     model::AbstractSem;
-    start_val = start_val,
+    start_params = start_params,
     kwargs...
 )
-    if !isa(start_val, Vector)
-        start_val = start_val(model; kwargs...)
+    if !isa(start_params, AbstractVector)
+        start_params = start_params(model; kwargs...)
     end
 
     if isnothing(optim.operator_h)
         solution, iterations = optim.algorithm(
-            x0 = start_val,
+            x0 = start_params,
             f = model,
             g = optim.operator_g
         )
     else
         solution, iterations = optim.algorithm(
-            x0=start_val,
+            x0=start_params,
             f=model,
             g=optim.operator_g,
             h=optim.operator_h
@@ -44,7 +44,7 @@ function SEM.sem_fit(
     return SemFit(
         minimum,
         solution,
-        start_val,
+        start_params,
         model,
         ProximalResult(optimization_result)
         )

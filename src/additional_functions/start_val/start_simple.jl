@@ -22,7 +22,7 @@ start_simple(model::SemLoss; kwargs...) =
 start_simple(observed::SemObserved, imply::SemImply; kwargs...) =
     start_simple(imply.ram_matrices; kwargs...)
 
-start_simple(model::AbstractSem; kwargs...) = start_values(start_simple, model; kwargs...)
+start_simple(model::AbstractSem; kwargs...) = start_params(start_simple, model; kwargs...)
 
 function start_simple(
     ram_matrices::RAMMatrices;
@@ -41,8 +41,8 @@ function start_simple(
     obs_inds = Set(observed_var_indices(ram_matrices))
     C_indices = CartesianIndices(size(A))
 
-    start_vals = Vector{Float64}(undef, nparams(ram_matrices))
-    for i in eachindex(start_vals)
+    start_params = Vector{Float64}(undef, nparams(ram_matrices))
+    for i in eachindex(start_params)
         par = 0.0
 
         Si_ind = param_occurences(S, i)
@@ -79,7 +79,7 @@ function start_simple(
             end
         end
 
-        start_vals[i] = par
+        start_params[i] = par
     end
-    return start_vals
+    return start_params
 end

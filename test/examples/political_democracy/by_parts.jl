@@ -184,7 +184,7 @@ end
 ############################################################################################
 
 @testset "$(id)_solution_mean" for (id, model) in pairs(models)
-    solution = sem_fit(semoptimizer, model, start_val = start_test_mean)
+    solution = sem_fit(semoptimizer, model, start_params = start_test_mean)
     update_estimate!(partable_mean, solution)
     sol_name = Symbol("parameter_estimates_", replace(id, r"_.+$" => ""), "_mean")
     test_estimates(partable_mean, solution_lav[sol_name]; atol = 1e-2)
@@ -248,7 +248,7 @@ end
 end
 
 @testset "fiml_solution_symbolic" begin
-    solution = sem_fit(semoptimizer, model_ml_sym, start_val = start_test_mean)
+    solution = sem_fit(semoptimizer, model_ml_sym; start_params = start_test_mean)
     update_estimate!(partable_mean, solution)
     test_estimates(partable_mean, solution_lav[:parameter_estimates_fiml]; atol = 1e-2)
 end

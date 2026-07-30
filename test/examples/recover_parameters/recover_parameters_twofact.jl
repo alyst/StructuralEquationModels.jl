@@ -64,6 +64,6 @@ model_ml = Sem(
            imply_ml)
 )
 objective!(model_ml, true_val)
-solution_ml = sem_fit(optimizer, model_ml, start_val = start)
+solution_ml = sem_fit(optimizer, model_ml, start_params = start)
 
 @test solution(solution_ml) ≈ true_val atol = .05

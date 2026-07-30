@@ -21,11 +21,11 @@ function se_bootstrap(semfit::SemFit; n_boot = 3000, data = nothing, specificati
 
     data = prepare_data_bootstrap(data)
 
-    start = solution(semfit)
+    start_params = solution(semfit)
 
-    new_solution = zero(start)
-    sum = zero(start)
-    squared_sum = zero(start)
+    new_solution = zero(start_params)
+    sum = zero(start_params)
+    squared_sum = zero(start_params)
 
     n_failed = 0.0
 
@@ -35,7 +35,7 @@ function se_bootstrap(semfit::SemFit; n_boot = 3000, data = nothing, specificati
 
         sample_data = bootstrap_sample(data)
         new_model = swap_observed(
-            model(semfit); 
+            model(semfit);
             data = sample_data,
             specification = specification,
             kwargs...
@@ -44,7 +44,7 @@ function se_bootstrap(semfit::SemFit; n_boot = 3000, data = nothing, specificati
         new_solution .= 0.0
 
         try
-            new_solution = solution(sem_fit(new_model; start_val = start))
+            new_solution = solution(sem_fit(new_model; start_params))
         catch
             n_failed += 1
         end

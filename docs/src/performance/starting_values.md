@@ -5,7 +5,7 @@ The `sem_fit` function has a keyword argument that takes either a vector of star
 ```julia
     sem_fit(
         model; 
-        start_val = start_simple,
+        start_params = start_simple,
         start_covariances_latent = 0.5
     )
 ```
