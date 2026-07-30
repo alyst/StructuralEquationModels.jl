@@ -26,6 +26,7 @@ include("additional_functions/param_transforms.jl")
 
 # fitted objects
 include("frontend/fit/SemFit.jl")
+
 # specification of models
 include("frontend/specification/ParameterTable.jl")
 include("frontend/specification/RAMMatrices.jl")
