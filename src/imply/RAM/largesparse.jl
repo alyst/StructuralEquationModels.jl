@@ -611,7 +611,7 @@ function update_Σ⁻¹_sparse!(implied::RAMLargeSparse)
 end
 
 Base.propertynames(implied::RAMLargeSparse, private::Bool=false) =
-    (:logdet_Σ, :Σ, :Σ⁻¹,
+    (:logdet_Σ, :Σ, :Σ⁻¹, :ram_matrices,
      (private ? fieldnames(typeof(implied)) :
                 filter(!startswith_undescore, fieldnames(typeof(implied))))...)
 
