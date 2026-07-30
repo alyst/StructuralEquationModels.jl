@@ -20,7 +20,7 @@ Base.show(io::IO, op::AdamMutation) = print(io, "AdamMutation(", op.optim, " sta
 """
 Default parameters for `AdamMutation`.
 """
-const AdamMutation_DefaultOptions = ParamsDict(
+const AdamMutation_DefaultOptions = Dict{Symbol,Any}(
     :AdamMutation_eta => 1E-1,
     :AdamMutation_beta => (0.99, 0.999),
     :AdamMutation_params_fraction => 0.25,

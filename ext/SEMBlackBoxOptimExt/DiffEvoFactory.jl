@@ -5,7 +5,7 @@ abstract type OptimizerFactory{P<:OptimizationProblem} end
 
 problem(factory::OptimizerFactory) = factory.problem
 
-const OptController_DefaultParameters = ParamsDict(
+const OptController_DefaultParameters = Dict{Symbol,Any}(
     :MaxTime => 60.0, :MaxSteps => 10^8,
     :TraceMode => :compact, :TraceInterval => 5.0,
     :RecoverResults => false, :SaveTrace => false
@@ -104,12 +104,12 @@ function generate_optimizer(factory::DiffEvoFactory, id::Int, problem::Optimizat
         generate_embedder(factory, id, problem))
 end
 
-const Population_DefaultParameters = ParamsDict(
+const Population_DefaultParameters = Dict{Symbol,Any}(
     :Population => BlackBoxOptim.PopulationMatrix(undef, 0, 0),
     :PopulationSize => 100,
 )
 
-const DE_DefaultParameters = chain(ParamsDict(
+const DE_DefaultParameters = chain(Dict{Symbol,Any}(
     :SelectorRadius => 0,
     :fdistr => BlackBoxOptim.BimodalCauchy(0.65, 0.1, 1.0, 0.1, clampBelow0 = false),
     :crdistr => BlackBoxOptim.BimodalCauchy(0.1, 0.1, 0.95, 0.1, clampBelow0 = false),
@@ -123,7 +123,7 @@ struct DefaultDiffEvoFactory{P<:OptimizationProblem} <: DiffEvoFactory{P}
 end
 
 DefaultDiffEvoFactory(problem::OptimizationProblem; kwargs...) =
-    DefaultDiffEvoFactory(problem, BlackBoxOptim.kwargs2dict(kwargs))
+    DefaultDiffEvoFactory(problem, Dict{Symbol,Any}(kwargs))
 
 function DefaultDiffEvoFactory(problem::OptimizationProblem, params::AbstractDict)
     params = chain(DE_DefaultParameters, params)
@@ -134,5 +134,5 @@ function BlackBoxOptim.bbsetup(factory::OptimizerFactory; kwargs...)
     popmatrix = initial_population_matrix(factory, 1)
     check_population(factory, popmatrix)
     alg = generate_optimizer(factory, 1, problem(factory), popmatrix)
-    return generate_opt_controller(alg, factory, BlackBoxOptim.kwargs2dict(kwargs))
+    return generate_opt_controller(alg, factory, Dict{Symbol,Any}(kwargs))
 end
