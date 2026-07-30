@@ -1,6 +1,6 @@
 # Custom optimizer types
 
-The optimizer part of a model connects it to the optimization backend. 
+The optimizer part of a model connects it to the optimization backend.
 The first part of the implementation is very similar to loss functions, so we just show the implementation of `SemOptimizerOptim` here as a reference:
 
 ```julia
@@ -14,8 +14,8 @@ mutable struct SemOptimizerOptim{A, B} <: SemOptimizer
 end
 
 function SemOptimizerOptim(;
-        algorithm = LBFGS(), 
-        options = Optim.Options(;f_tol = 1e-10, x_tol = 1.5e-8), 
+        algorithm = LBFGS(),
+        options = Optim.Options(;f_tol = 1e-10, x_tol = 1.5e-8),
         kwargs...)
     return SemOptimizerOptim(algorithm, options)
 end
@@ -38,10 +38,10 @@ Now comes a part that is a little bit more complicated: We need to write methods
 
 ```julia
 function sem_fit(
-        model::AbstractSemSingle{O, I, L, D}; 
+        model::AbstractSemSingle{O, I, L, D};
         start_params = start_params,
         kwargs...) where {O, I, L, D <: SemOptimizerOptim}
-    
+
     if !isa(start_params, AbstractVector)
         start_params = start_params(model; kwargs...)
     end
@@ -60,7 +60,7 @@ If we want our type to also work with `SemEnsemble` models, we also have to prov
 
 ```julia
 function sem_fit(
-        model::SemEnsemble{N, T , V, D, S}; 
+        model::SemEnsemble{N, T , V, D, S};
         start_params = start_params,
         kwargs...) where {N, T, V, D <: SemOptimizerOptim, S}
 
