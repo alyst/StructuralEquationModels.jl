@@ -42,6 +42,12 @@ the NLopt.jl package and the NLopt online documentation.
 For information on how to use inequality and equality constraints,
 see [Constrained optimization](@ref) in our online documentation.
 
+When the model declares parameter transforms, NLopt optimizes in unconstrained
+coordinates and explicit equality and inequality constraint functions continue
+to receive model values. The `lower_bounds` and `upper_bounds` NLopt options
+cannot be combined with parameter transforms; use the transforms themselves or
+explicit constraint functions instead.
+
 # Extended help
 
 ## Interfaces

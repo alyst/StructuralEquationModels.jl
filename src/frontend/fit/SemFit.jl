@@ -13,6 +13,10 @@ Fitted structural equation model.
 - `model(::SemFit)`
 - `optimization_result(::SemFit)`
 
+When parameter transforms are used for fitting, `solution` and `start_params`
+remain on the model parameter scale. The backend-specific `optimization_result`
+retains its unconstrained-space minimizer.
+
 - `optimizer(::SemFit)` -> optimization algorithm
 - `n_iterations(::SemFit)` -> number of iterations
 - `convergence(::SemFit)` -> convergence properties

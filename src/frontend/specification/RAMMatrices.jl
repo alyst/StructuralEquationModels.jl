@@ -10,7 +10,13 @@ struct RAMMatrices <: SemSpecification
     M::Union{ParamsVector{Float64}, Nothing}
     params::Vector{Symbol}
     colnames::Union{Vector{Symbol}, Nothing}    # better call it "variables": it's a mixture of observed and latent (and it gets confusing with get_colnames())
+    param_transforms::Union{ParamTransforms, Nothing}
 end
+
+RAMMatrices(A, S, F, M, params, colnames) =
+    RAMMatrices(A, S, F, M, params, colnames, nothing)
+
+param_transforms(ram::RAMMatrices) = ram.param_transforms
 
 MeanStructure(ram::RAMMatrices) = isnothing(ram.M) ? NoMeanStructure() : HasMeanStructure()
 
@@ -76,7 +82,8 @@ function RAMMatrices(; A::AbstractMatrix, S::AbstractMatrix,
                        F::Union{AbstractMatrix, Nothing} = nothing,
                      observed_vars::Union{AbstractVector{Symbol}, Nothing} = nothing,
                      params::AbstractVector{Symbol},
-                     colnames::Union{AbstractVector{Symbol}, Nothing} = nothing)
+                     colnames::Union{AbstractVector{Symbol}, Nothing} = nothing,
+                     param_transforms = nothing)
     ncols = size(A, 2)
     if !isnothing(colnames)
         length(colnames) == ncols || throw(DimensionMismatch("colnames length ($(length(colnames))) does not match the number of columns in A ($ncols)"))
@@ -112,24 +119,46 @@ function RAMMatrices(; A::AbstractMatrix, S::AbstractMatrix,
     if any(!isone, spF.nzval)
         throw(ArgumentError("F should contain only 0s and 1s"))
     end
-    return RAMMatrices(A, S, F, M, copy(params), colnames)
+    if param_transforms isa ParamTransforms
+        length(param_transforms.transforms) == length(params) ||
+            throw(DimensionMismatch(
+                "The number of parameter transformations " *
+                "($(length(param_transforms.transforms))) does not match the number " *
+                "of model parameters ($(length(params)))"))
+    elseif !isnothing(param_transforms)
+        param_transforms = ParamTransforms(params, param_transforms)
+    end
+    if !isnothing(param_transforms) && allidentity(param_transforms)
+        param_transforms = nothing
+    end
+    return RAMMatrices(A, S, F, M, copy(params), colnames, param_transforms)
 end
 
 # copy RAMMatrices replacing the parameters vector
-RAMMatrices(ram::RAMMatrices; params::AbstractVector{Symbol}) =
-    RAMMatrices(;
+function RAMMatrices(ram::RAMMatrices;
+                     params::AbstractVector{Symbol} = SEM.params(ram),
+                     param_transforms = ram.param_transforms)
+    if param_transforms isa ParamTransforms &&
+            param_transforms === ram.param_transforms &&
+            params != SEM.params(ram)
+        param_transforms = merge_param_transforms(
+            params, [SEM.params(ram) => param_transforms])
+    end
+    return RAMMatrices(;
         A = materialize(ram.A, SEM.params(ram)),
         S = materialize(ram.S, SEM.params(ram)),
         F = copy(ram.F),
         M = !isnothing(ram.M) ? materialize(ram.M, SEM.params(ram)) : nothing,
-        params, colnames = ram.colnames)
+        params, colnames = ram.colnames, param_transforms)
+end
 
 ############################################################################################
 ### get RAMMatrices from parameter table
 ############################################################################################
 
 function RAMMatrices(partable::ParameterTable;
-                     params::Union{AbstractVector{Symbol}, Nothing} = nothing)
+                     params::Union{AbstractVector{Symbol}, Nothing} = nothing,
+                     param_transforms = nothing)
 
     params = copy(isnothing(params) ? SEM.params(partable) : params)
     dup_params = nonunique(params)
@@ -217,11 +246,23 @@ function RAMMatrices(partable::ParameterTable;
         sort!(M_consts, by=first)
     end
 
+    if param_transforms isa ParamTransforms
+        length(param_transforms.transforms) == length(params) ||
+            throw(DimensionMismatch(
+                "The number of parameter transformations " *
+                "($(length(param_transforms.transforms))) does not match the number " *
+                "of model parameters ($(length(params)))"))
+    elseif !isnothing(param_transforms)
+        param_transforms = ParamTransforms(params, param_transforms)
+    end
+    if !isnothing(param_transforms) && allidentity(param_transforms)
+        param_transforms = nothing
+    end
     return RAMMatrices(ParamsMatrix{T}(A_inds, A_consts, (n_vars, n_vars)),
                        ParamsMatrix{T}(S_inds, S_consts, (n_vars, n_vars)),
                        eachrow_to_col(T, [vars_index[var] for var in partable.variables.observed], n_vars),
                        !isnothing(M_inds) ? ParamsVector{T}(M_inds, M_consts, (n_vars,)) : nothing,
-                       params, vars_sorted)
+                       params, vars_sorted, param_transforms)
 end
 
 Base.convert(::Type{RAMMatrices}, partable::ParameterTable) = RAMMatrices(partable)

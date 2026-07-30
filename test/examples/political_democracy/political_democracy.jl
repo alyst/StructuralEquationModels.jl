@@ -98,9 +98,15 @@ start_test_mean = [fill(1.0, 11); fill(0.05, 3); fill(0.05, 6); fill(0.5, 8); fi
 
 opt_engine = :Optim
 @testset "RAMMatrices | constructor | Optim" begin include("constructor.jl") end
+@testset "RAMMatrices | model and unconstrained spaces | Optim" begin
+    include("param_transforms.jl")
+end
 
 opt_engine = :NLopt
 @testset "RAMMatrices | constructor | NLopt" begin include("constructor.jl") end
+@testset "RAMMatrices | model and unconstrained spaces | NLopt" begin
+    include("param_transforms.jl")
+end
 
 if is_extended_tests()
     opt_engine = :Optim

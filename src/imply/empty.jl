@@ -51,3 +51,5 @@ update!(targets::EvaluationTargets, imply::ImplyEmpty, par) = nothing
 ############################################################################################
 
 update_observed(imply::ImplyEmpty, observed::SemObserved; kwargs...) = imply
+
+param_transforms(imply::ImplyEmpty) = nothing # no transforms

@@ -11,9 +11,7 @@ function SEM.sem_fit(
     start_params = start_params,
     kwargs...
 )
-    if !isa(start_params, AbstractVector)
-        start_params = start_params(model; kwargs...)
-    end
+    start_params = SEM.prepare_start_params(start_params, model; kwargs...)
 
     if isnothing(optim.operator_h)
         solution, iterations = optim.algorithm(

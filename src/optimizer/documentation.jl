@@ -34,6 +34,57 @@ sem_fit(model::AbstractSem; engine::Symbol=:Optim, start_params = nothing, kwarg
 sem_fit(optim::SemOptimizer, model::AbstractSem, start_params; kwargs...) =
     error("Optimizer $(optim) support not implemented.")
 
+"""
+    evaluate_unconstrained!(
+        objective,
+        unconstrained_gradient,
+        unsupported_hessian,
+        model,
+        unconstrained_vals,
+    )
+
+Evaluate `model` at `unconstrained_vals` using its declared parameter
+transformations.
+
+`unconstrained_vals` is transformed to model values before evaluation. If
+`unconstrained_gradient` is not `nothing`, the model gradient is pulled back to
+unconstrained space and written into it. Temporary vectors are local to the
+call, so concurrent evaluations do not share mutable workspace.
+
+Pass `nothing` for `unconstrained_gradient` when only the objective is needed.
+Hessian evaluation with non-identity parameter transforms is not currently
+supported, so `unsupported_hessian` must be `nothing`.
+"""
+function evaluate_unconstrained!(
+    objective,
+    unconstrained_gradient,
+    unsupported_hessian,
+    model::AbstractSem,
+    unconstrained_vals::AbstractVector,
+)
+    isnothing(unsupported_hessian) ||
+        throw(ArgumentError(
+            "Hessian evaluation is not yet supported with non-identity " *
+            "parameter transformations"))
+    trfs = param_transforms(model)
+    isnothing(trfs) && throw(ArgumentError(
+        "Cannot evaluate unconstrained parameters for a model without parameter transforms"))
+    model_vals = similar(unconstrained_vals)
+    if isnothing(unconstrained_gradient)
+        transform_params!(model_vals, nothing, trfs, unconstrained_vals)
+        return evaluate!(objective, nothing, nothing, model, model_vals)
+    end
+    model_gradient = similar(unconstrained_vals)
+    scalar_derivatives = similar(unconstrained_vals)
+    transform_params!(
+        model_vals, scalar_derivatives, trfs, unconstrained_vals)
+    result = evaluate!(objective, model_gradient, nothing, model, model_vals)
+    pullback_param_gradient!(
+        unconstrained_gradient, model_gradient, model_vals,
+        scalar_derivatives, trfs)
+    return result
+end
+
 function prepare_start_params(start_params, model::AbstractSem;
                               start_params_jitter::Number = 0,
                               kwargs...)

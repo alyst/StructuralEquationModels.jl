@@ -4,9 +4,12 @@ function SemFit(
         optimization_result::Optim.MultivariateOptimizationResults,
         model::AbstractSem,
         start_params)
+    trfs = param_transforms(model)
+    model_sol = isnothing(trfs) ? optimization_result.minimizer :
+        transform_params(trfs, optimization_result.minimizer)
     return SemFit(
         optimization_result.minimum,
-        optimization_result.minimizer,
+        model_sol,
         start_params,
         model,
         optimization_result
@@ -27,6 +30,29 @@ function sem_fit(
         lower_bound = -Inf,
         upper_bound = Inf,
         kwargs...)
+
+    fit_transforms = SEM.param_transforms(model)
+
+    if !isnothing(fit_transforms)
+        (optim.algorithm isa Optim.Fminbox || optim.algorithm isa Optim.SAMIN) &&
+            throw(ArgumentError("Parameter transformations are not yet supported with bounded " *
+                                "Optim algorithms (Fminbox or SAMIN)"))
+
+        unconstrained_start_params = inverse_transform_params(
+            fit_transforms, start_params)
+
+        result = Optim.optimize(
+            Optim.only_fgh!((objective, unconstrained_gradient,
+                             unsupported_hessian, unconstrained_vals) ->
+                evaluate_unconstrained!(
+                    objective, unconstrained_gradient, unsupported_hessian,
+                    model, unconstrained_vals)),
+            unconstrained_start_params,
+            optim.algorithm,
+            optim.options,
+        )
+        return SemFit(result, model, start_params)
+    end
 
     # setup lower/upper bounds if the algorithm supports it
     if optim.algorithm isa Optim.Fminbox || optim.algorithm isa Optim.SAMIN

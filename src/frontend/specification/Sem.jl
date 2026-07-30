@@ -126,6 +126,24 @@ nsem_terms(sem::AbstractSem) = sum(issemloss, loss_terms(sem))
 
 n_obs(sem::AbstractSem) = sum(term -> issemloss(term) ? n_obs(term) : 0, loss_terms(sem))
 
+"""
+    param_transforms(model::AbstractSem) -> Union{ParamTransforms, Nothing}
+
+Return the parameter transforms declared by the model's RAM specifications. For
+ensemble models, transforms are merged by parameter name. Conflicting scalar or
+covariance transforms for a shared parameter raise an error.
+"""
+function param_transforms(model::AbstractSem)
+    model_params = params(model)
+    transform_specs = Pair[]
+    for term in sem_terms(model)
+        term_imply = imply(term)
+        push!(transform_specs,
+              params(term_imply) => param_transforms(term_imply))
+    end
+    return merge_param_transforms(model_params, transform_specs)
+end
+
 function sem_term(model::AbstractSem)
     if nsem_terms(model) != 1
         error("Model contains $(nsem_terms(model)) SEM terms, you have to specify a specific term")

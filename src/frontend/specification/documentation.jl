@@ -70,7 +70,7 @@ function EnsembleParameterTable end
 
     (1) RAMMatrices(partable::ParameterTable)
 
-    (2) RAMMatrices(;A, S, F, M = nothing, parameters, colnames)
+    (2) RAMMatrices(;A, S, F, M = nothing, parameters, colnames, param_transforms = nothing)
 
     (3) RAMMatrices(partable::EnsembleParameterTable)
 
@@ -86,6 +86,9 @@ Return `RAMMatrices` constructed from (1) a parameter table or (2) individual ma
 - `M`: vector of mean effects
 - `parameters::Vector{Symbol}`: parameter labels
 - `colnames::Vector{Symbol}`: variable names corresponding to the A, S and F matrix columns
+- `param_transforms`: optional vector, parameter-keyed dictionary, or
+  [`ParamTransforms`](@ref) describing scalar and coupled covariance
+  optimizer-to-model transforms
 
 # Examples
 See the online documentation on [Model specification](@ref) and the [RAMMatrices interface](@ref).
