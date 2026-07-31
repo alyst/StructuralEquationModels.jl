@@ -107,7 +107,16 @@ function prepare_start_params(start_params, model::AbstractSem;
     @assert start_params isa AbstractVector{<:Number}
     @assert length(start_params) == nparams(model)
     if start_params_jitter != 0
-        start_params .+= randn(length(start_params)) * start_params_jitter
+        transforms = param_transforms(model)
+        if isnothing(transforms)
+            start_params .+= randn(length(start_params)) * start_params_jitter
+        else
+            unconstrained_start_params = inverse_transform_params(
+                transforms, start_params)
+            unconstrained_start_params .+=
+                randn(length(start_params)) * start_params_jitter
+            start_params = transform_params(transforms, unconstrained_start_params)
+        end
     end
     return start_params
 end

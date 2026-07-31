@@ -257,6 +257,10 @@ end
     @test SEM.param_transforms(ram) isa SEM.ParamTransforms
     @test SEM.param_transforms(ram_model) isa SEM.ParamTransforms
     @test SEM.start_simple(ram_model) == [1.0, 1.0]
+    jittered_start = SEM.prepare_start_params(
+        [1.0, 1.0], ram_model; start_params_jitter = 1.0)
+    @test all(isfinite, SEM.inverse_transform_params(
+        SEM.param_transforms(ram_model), jittered_start))
     fit = SEM.sem_fit(optimizer, ram_model; start_params = SEM.start_simple)
     @test start_params(fit) == [1.0, 1.0]
     @test fit.solution ≈ [2.0, 0.5] atol = 1e-7
