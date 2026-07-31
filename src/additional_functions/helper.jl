@@ -1,4 +1,4 @@
-# Neumann seriess representation of (I - mat)⁻¹
+# Neumann series representation of (I - mat)⁻¹
 function neumann_series(mat::SparseMatrixCSC;
                         maxn::Integer = size(mat, 1),
                         Aⁿ_rewriter = nothing)
