@@ -1,6 +1,6 @@
 """
     CovarianceTransforms(covariance_indices, variance_sources, nparams)
-    CovarianceTransforms(S::ParamsMatrix)
+    CovarianceTransforms(S::ParamsMatrix; skip_params=nothing)
 
 Index-based relationships used to convert correlation-like optimizer parameters to
 covariances. Entry `k` of `variance_sources` contains the two variance parameter
@@ -10,8 +10,10 @@ index denotes that the corresponding fixed value is used.
 The `S`-matrix constructor infers these relationships from its structure. A parameter
 that occurs on the diagonal is treated as a variance parameter, even if it is reused
 off the diagonal; every parameter that occurs only off the diagonal is treated as a
-covariance parameter. Reusing a covariance parameter for different pairs of diagonal
-variances is an error.
+covariance parameter. Parameters listed by index in `skip_params` are excluded from
+covariance-transform inference, for example because they already have suitable scalar
+transformations. Reusing any remaining covariance parameter for different pairs of
+diagonal variances is an error.
 """
 struct CovarianceTransforms{T <: Real}
     covariance_indices::Vector{Int}
@@ -102,9 +104,21 @@ CovarianceTransforms(::Nothing = nothing) =
     CovarianceTransforms(
         Int[], Tuple{Int, Int, Float64, Float64}[], 0)
 
-function CovarianceTransforms(S::ParamsMatrix)
+function CovarianceTransforms(
+    S::ParamsMatrix;
+    skip_params::Union{AbstractVector{<:Integer}, Nothing} = nothing,
+)
     size(S, 1) == size(S, 2) ||
         throw(DimensionMismatch("The RAM S matrix must be square"))
+
+    skip_param_mask = falses(nparams(S))
+    if !isnothing(skip_params)
+        for par_ix in skip_params
+            1 <= par_ix <= nparams(S) || throw(ArgumentError(
+                "Skipped parameter index $par_ix must be between 1 and $(nparams(S))"))
+            skip_param_mask[par_ix] = true
+        end
+    end
 
     nvars = size(S, 1)
     S_ixs = CartesianIndices(size(S))
@@ -128,7 +142,7 @@ function CovarianceTransforms(S::ParamsMatrix)
     cov_ixs = Int[]
     variance_sources = Tuple{Int, Int, eltype(S), eltype(S)}[]
     for par_ix in 1:nparams(S)
-        diag_param_mask[par_ix] && continue
+        (diag_param_mask[par_ix] || skip_param_mask[par_ix]) && continue
         var_srcs = nothing
         for linear_ix in param_occurences(S, par_ix)
             row, col = Tuple(S_ixs[linear_ix])
@@ -156,8 +170,11 @@ function CovarianceTransforms(S::ParamsMatrix)
     return CovarianceTransforms(cov_ixs, variance_sources, nparams(S))
 end
 
-CovarianceTransforms(S::AbstractMatrix, params::AbstractVector{Symbol}) =
-    CovarianceTransforms(ParamsMatrix{Float64}(S, params))
+CovarianceTransforms(
+    S::AbstractMatrix,
+    params::AbstractVector{Symbol},
+    skip_params::Union{AbstractVector{<:Integer}, Nothing} = nothing,
+) = CovarianceTransforms(ParamsMatrix{Float64}(S, params); skip_params)
 
 Base.isempty(transforms::CovarianceTransforms) = isempty(transforms.covariance_indices)
 

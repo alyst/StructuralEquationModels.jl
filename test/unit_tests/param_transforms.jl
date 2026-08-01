@@ -172,6 +172,29 @@ end
     @test generated.covariance_indices == [3, 4]
     @test generated.variance_sources ==
           [(1, 2, 0.0, 0.0), (1, 0, 0.0, 16.0)]
+    generated_without_covariance12 = SEM.CovarianceTransforms(
+        symbolic_S, covariance_params, [3])
+    @test generated_without_covariance12.covariance_indices == [4]
+    @test generated_without_covariance12.variance_sources ==
+          [(1, 0, 0.0, 16.0)]
+    @test_throws ArgumentError SEM.CovarianceTransforms(
+        symbolic_S, covariance_params, [0])
+    @test_throws ArgumentError SEM.CovarianceTransforms(
+        symbolic_S, covariance_params, [length(covariance_params) + 1])
+
+    shared_covariance_params = [
+        :variance1, :variance2, :variance3, :covariance12, :shared_covariance]
+    shared_covariance_S = Union{Float64, Symbol}[
+        :variance1 :shared_covariance :shared_covariance
+        :shared_covariance :variance2 :covariance12
+        :shared_covariance :covariance12 :variance3
+    ]
+    @test_throws ArgumentError SEM.CovarianceTransforms(
+        shared_covariance_S, shared_covariance_params)
+    skipped_shared_covariance = SEM.CovarianceTransforms(
+        shared_covariance_S, shared_covariance_params, [5])
+    @test skipped_shared_covariance.covariance_indices == [4]
+    @test skipped_shared_covariance.variance_sources == [(2, 3, 0.0, 0.0)]
     @test isempty(SEM.CovarianceTransforms(
         Union{Float64, Symbol}[:variance1 :variance1; :variance1 :variance1],
         covariance_params,
