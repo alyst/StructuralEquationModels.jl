@@ -1,6 +1,8 @@
 """
     CovarianceTransforms(covariance_indices, variance_sources, nparams)
-    CovarianceTransforms(S::ParamsMatrix; skip_params=nothing)
+    CovarianceTransforms(S::ParamsMatrix;
+                         skip_params=nothing,
+                         skip_conflicting_variances=false)
 
 Index-based relationships used to convert correlation-like optimizer parameters to
 covariances. Entry `k` of `variance_sources` contains the two variance parameter
@@ -9,11 +11,11 @@ index denotes that the corresponding fixed value is used.
 
 The `S`-matrix constructor infers these relationships from its structure. A parameter
 that occurs on the diagonal is treated as a variance parameter, even if it is reused
-off the diagonal; every parameter that occurs only off the diagonal is treated as a
+off the diagonal. Every parameter that occurs only off the diagonal is treated as a
 covariance parameter. Parameters listed by index in `skip_params` are excluded from
-covariance-transform inference, for example because they already have suitable scalar
-transformations. Reusing any remaining covariance parameter for different pairs of
-diagonal variances is an error.
+covariance-transform inference. Reusing any remaining covariance parameter for different
+pairs of diagonal variances is an error unless `skip_conflicting_variances` is `true`,
+in which case such parameters are left out of the returned transformations.
 """
 struct CovarianceTransforms{T <: Real}
     covariance_indices::Vector{Int}
@@ -107,6 +109,7 @@ CovarianceTransforms(::Nothing = nothing) =
 function CovarianceTransforms(
     S::ParamsMatrix;
     skip_params::Union{AbstractVector{<:Integer}, Nothing} = nothing,
+    skip_conflicting_variances::Bool = false,
 )
     size(S, 1) == size(S, 2) ||
         throw(DimensionMismatch("The RAM S matrix must be square"))
@@ -155,12 +158,16 @@ function CovarianceTransforms(
             if isnothing(var_srcs)
                 var_srcs = cur_var_srcs
             else
-                var_srcs == cur_var_srcs || throw(ArgumentError(
-                    "Covariance parameter index $par_ix refers to multiple " *
-                    "pairs of diagonal variances"))
+                if var_srcs != cur_var_srcs
+                    skip_conflicting_variances || throw(ArgumentError(
+                        "Covariance parameter index $par_ix refers to multiple " *
+                        "pairs of diagonal variances"))
+                    var_srcs = nothing
+                    break
+                end
             end
         end
-        isnothing(var_srcs) && continue # not a covariance param
+        isnothing(var_srcs) && continue # not a covariance param or conflicting variances
         push!(cov_ixs, par_ix)
         push!(variance_sources, (
             var_srcs[1][2], var_srcs[2][2],
@@ -173,8 +180,13 @@ end
 CovarianceTransforms(
     S::AbstractMatrix,
     params::AbstractVector{Symbol},
-    skip_params::Union{AbstractVector{<:Integer}, Nothing} = nothing,
-) = CovarianceTransforms(ParamsMatrix{Float64}(S, params); skip_params)
+    skip_params::Union{AbstractVector{<:Integer}, Nothing} = nothing;
+    skip_multiple_variance_pairs::Bool = false,
+) = CovarianceTransforms(
+    ParamsMatrix{Float64}(S, params);
+    skip_params,
+    skip_multiple_variance_pairs,
+)
 
 Base.isempty(transforms::CovarianceTransforms) = isempty(transforms.covariance_indices)
 

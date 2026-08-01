@@ -191,6 +191,13 @@ end
     ]
     @test_throws ArgumentError SEM.CovarianceTransforms(
         shared_covariance_S, shared_covariance_params)
+    skipped_conflicted_variances = SEM.CovarianceTransforms(
+        shared_covariance_S,
+        shared_covariance_params;
+        skip_conflicting_variances = true,
+    )
+    @test skipped_conflicted_variances.covariance_indices == [4]
+    @test skipped_conflicted_variances.variance_sources == [(2, 3, 0.0, 0.0)]
     skipped_shared_covariance = SEM.CovarianceTransforms(
         shared_covariance_S, shared_covariance_params, [5])
     @test skipped_shared_covariance.covariance_indices == [4]
