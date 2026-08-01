@@ -258,11 +258,17 @@ function RAMLargeSparse(spec::SemSpecification;
         verbose && @info "compiling in-place I_A⁻¹ll(θ) = (I - A(θ))⁻¹[lat, lat] = (I - A(θ)[lat, lat])⁻¹"
         _, I_A⁻¹ll_eval! = Symbolics.build_function(
             convert(Matrix, I_A⁻¹_sym[latent_ixs, latent_ixs]),
-            sympars, expression=Val{false})
+            sympars;
+            expression = Val{false},
+            # The destination is initialized to zero below and only this evaluator writes
+            # to it. Avoid generating and compiling assignments for structural zeros.
+            skipzeros = true,
+            fillzeros = false,
+        )
         verbose && @info "  generating initial I_A⁻¹ll(θ)..."
         I_A⁻¹ll_pre = M_I_A(zeros(T, nlat, nlat))
-        verbose && @info "  $(nnz(parent(I_A⁻¹ll_pre))) nonzeros in I_A⁻¹[lat,lat]"
         I_A⁻¹ll_eval!(I_A⁻¹ll_pre, randpars)
+        verbose && @info "  $(sum(!iszero, parent(I_A⁻¹ll_pre))) nonzeros in I_A⁻¹[lat,lat]"
     else # no latent-latent regression
         I_A⁻¹ll_eval! = nothing
         I_A⁻¹ll_pre = I
@@ -322,7 +328,7 @@ function RAMLargeSparse(spec::SemSpecification;
     end
     active_lat_ixs = findall(active_lat_mask)
     if length(active_lat_ixs) < nlat
-        verbose && @info "  $(nlat - length(active_lat_ixs)) dependent (structural-zero-variance) latent variable(s) detected, excluded from Sll Cholesky"
+        verbose && @info "S[lat, lat]: $(nlat - length(active_lat_ixs)) dependent (structural-zero-variance) latent variable(s) detected, excluded from Sll Cholesky"
         Sll_pre4chol = Symmetric(Sll_pre[active_lat_ixs, active_lat_ixs])
     else
         active_lat_ixs = nothing # no dependent latents

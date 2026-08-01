@@ -40,6 +40,12 @@ dense_objective = SEM.objective_gradient!(
 
     @test sparse.active_lat_ixs == [2]
     @test !isnothing(sparse.I_All_parr)
+    I_A⁻¹ll_test = fill(NaN, 2, 2)
+    sparse.I_A⁻¹ll_eval!(I_A⁻¹ll_test, model_vals)
+    @test I_A⁻¹ll_test[1, 1] == 1.0
+    @test I_A⁻¹ll_test[1, 2] == 1.0
+    @test isnan(I_A⁻¹ll_test[2, 1]) # structural zero is not emitted by build_function
+    @test I_A⁻¹ll_test[2, 2] == 1.0
     @test size(sparse.I_A⁻¹ol_active) == (1, 1)
     @test size(sparse._Σ⁻¹lo_buf) == (1, 1)
     @test size(sparse._Σ⁻¹lo_buf2) == (1, 1)
