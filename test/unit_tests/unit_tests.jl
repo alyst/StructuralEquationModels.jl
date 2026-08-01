@@ -7,3 +7,5 @@ using Test, SafeTestsets
 @safetestset "Predict Scores" begin include("predict_scores.jl") end
 
 @safetestset "Param Transforms" begin include("param_transforms.jl") end
+
+@safetestset "RAMLargeSparse" begin include("largesparse.jl") end
