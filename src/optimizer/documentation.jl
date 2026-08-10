@@ -62,27 +62,25 @@ function evaluate_unconstrained!(
     model::AbstractSem,
     unconstrained_vals::AbstractVector,
 )
-    isnothing(unsupported_hessian) ||
+
+    param_trfs = param_transforms(model)
+    isnothing(param_trfs) || isnothing(unsupported_hessian) ||
         throw(ArgumentError(
             "Hessian evaluation is not yet supported with non-identity " *
             "parameter transformations"))
-    trfs = param_transforms(model)
-    isnothing(trfs) && throw(ArgumentError(
-        "Cannot evaluate unconstrained parameters for a model without parameter transforms"))
-    model_vals = similar(unconstrained_vals)
-    if isnothing(unconstrained_gradient)
-        transform_params!(model_vals, nothing, trfs, unconstrained_vals)
-        return evaluate!(objective, nothing, nothing, model, model_vals)
-    end
-    model_gradient = similar(unconstrained_vals)
-    scalar_derivatives = similar(unconstrained_vals)
-    transform_params!(
-        model_vals, scalar_derivatives, trfs, unconstrained_vals)
-    result = evaluate!(objective, model_gradient, nothing, model, model_vals)
-    pullback_param_gradient!(
-        unconstrained_gradient, model_gradient, model_vals,
-        scalar_derivatives, trfs)
-    return result
+
+            # calculate scalar derivatives if unconstrained_gradient is requested
+    scalar_derivs = isnothing(unconstrained_gradient) || isnothing(param_trfs) ? nothing :
+        similar(unconstrained_vals)
+    model_vals = isnothing(param_trfs) ? unconstrained_vals :
+        transform_params!(similar(unconstrained_vals), scalar_derivs, param_trfs, unconstrained_vals)
+
+    model_grad = isnothing(scalar_derivs) ? unconstrained_gradient : similar(unconstrained_vals)
+    res = evaluate!(objective, model_grad, nothing, model, model_vals)
+    isnothing(scalar_derivs) || pullback_param_gradient!(
+        unconstrained_gradient, model_grad, model_vals,
+        scalar_derivs, param_trfs)
+    return res
 end
 
 function prepare_start_params(start_params, model::AbstractSem;
