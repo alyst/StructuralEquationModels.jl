@@ -32,10 +32,10 @@ function SEM.sem_fit(
     start_params::AbstractVector;
     kwargs...)
 
-    fit_trfs = SEM.param_transforms(model)
-    if !isnothing(fit_trfs)
+    model_trfs = SEM.param_transforms(model)
+    if !isnothing(model_trfs)
         unconstrained_start_params = SEM.inverse_transform_params(
-            fit_trfs, start_params)
+            model_trfs, start_params)
         _check_NLopt_transform_options(optim)
     else
         unconstrained_start_params = start_params
@@ -46,8 +46,8 @@ function SEM.sem_fit(
         optim.algorithm,
         optim.options,
         length(unconstrained_start_params))
-    set_NLopt_constraints!(opt, optim, fit_trfs)
-    if isnothing(fit_trfs)
+    set_NLopt_constraints!(opt, optim, model_trfs)
+    if isnothing(model_trfs)
         opt.min_objective = (par, G) -> SEM.evaluate!(
             zero(eltype(par)), !isempty(G) ? G : nothing,
             nothing, model, par)
