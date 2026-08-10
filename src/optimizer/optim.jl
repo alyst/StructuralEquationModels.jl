@@ -31,16 +31,31 @@ function sem_fit(
         upper_bound = Inf,
         kwargs...)
 
-    fit_transforms = SEM.param_transforms(model)
+    model_trfs = SEM.param_transforms(model)
 
-    if !isnothing(fit_transforms)
-        (optim.algorithm isa Optim.Fminbox || optim.algorithm isa Optim.SAMIN) &&
-            throw(ArgumentError("Parameter transformations are not yet supported with bounded " *
-                                "Optim algorithms (Fminbox or SAMIN)"))
 
-        unconstrained_start_params = inverse_transform_params(
-            fit_transforms, start_params)
+    # setup lower/upper bounds if the algorithm supports it
+    if optim.algorithm isa Optim.Fminbox || optim.algorithm isa Optim.SAMIN
+        isnothing(model_trfs) || throw(ArgumentError(
+            "Parameter transformations are not supported with bounded " *
+            "Optim.jl algorithms (Fminbox or SAMIN)"))
 
+        lbounds = SEM.lower_bounds(lower_bounds, model, default=lower_bound, variance_default=variance_lower_bound)
+        ubounds = SEM.upper_bounds(upper_bounds, model, default=upper_bound)
+        start_params = clamp.(start_params, lbounds, ubounds)
+        result = Optim.optimize(
+            Optim.only_fgh!((F, G, H, par) -> evaluate!(F, G, H, model, par)),
+            lbounds, ubounds, start_params,
+            optim.algorithm,
+            optim.options)
+    elseif isnothing(model_trfs)
+        result = Optim.optimize(
+                Optim.only_fgh!((F, G, H, par) -> evaluate!(F, G, H, model, par)),
+                start_params,
+                optim.algorithm,
+                optim.options)
+    else
+        unconstrained_start_params = inverse_transform_params(model_trfs, start_params)
         result = Optim.optimize(
             Optim.only_fgh!((objective, unconstrained_gradient,
                              unsupported_hessian, unconstrained_vals) ->
@@ -51,25 +66,6 @@ function sem_fit(
             optim.algorithm,
             optim.options,
         )
-        return SemFit(result, model, start_params)
-    end
-
-    # setup lower/upper bounds if the algorithm supports it
-    if optim.algorithm isa Optim.Fminbox || optim.algorithm isa Optim.SAMIN
-        lbounds = SEM.lower_bounds(lower_bounds, model, default=lower_bound, variance_default=variance_lower_bound)
-        ubounds = SEM.upper_bounds(upper_bounds, model, default=upper_bound)
-        start_params = clamp.(start_params, lbounds, ubounds)
-        result = Optim.optimize(
-            Optim.only_fgh!((F, G, H, par) -> evaluate!(F, G, H, model, par)),
-            lbounds, ubounds, start_params,
-            optim.algorithm,
-            optim.options)
-    else
-        result = Optim.optimize(
-                Optim.only_fgh!((F, G, H, par) -> evaluate!(F, G, H, model, par)),
-                start_params,
-                optim.algorithm,
-                optim.options)
     end
     return SemFit(result, model, start_params)
 
