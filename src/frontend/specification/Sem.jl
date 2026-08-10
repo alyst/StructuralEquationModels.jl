@@ -104,7 +104,12 @@ In that case, you may use RAMMatrices instead.")
     end
 
     terms_tuple = Tuple(terms)
-    return Sem{typeof(terms_tuple)}(terms_tuple, params)
+    transform_specs = Pair[
+        SEM.params(term) => param_transforms(imply(term))
+        for term in terms_tuple if issemloss(term)
+    ]
+    merged_param_transforms = merge_param_transforms(params, transform_specs)
+    return Sem(terms_tuple, params, merged_param_transforms)
 end
 
 ############################################################################################
@@ -131,18 +136,10 @@ n_obs(sem::AbstractSem) = sum(term -> issemloss(term) ? n_obs(term) : 0, loss_te
 
 Return the parameter transforms declared by the model's RAM specifications. For
 ensemble models, transforms are merged by parameter name. Conflicting scalar or
-covariance transforms for a shared parameter raise an error.
+covariance transforms for a shared parameter raise an error when the [`Sem`](@ref)
+is constructed. The merged transformations are cached in the model.
 """
-function param_transforms(model::AbstractSem)
-    model_params = params(model)
-    transform_specs = Pair[]
-    for term in sem_terms(model)
-        term_imply = imply(term)
-        push!(transform_specs,
-              params(term_imply) => param_transforms(term_imply))
-    end
-    return merge_param_transforms(model_params, transform_specs)
-end
+param_transforms(model::Sem) = model.param_transforms
 
 function sem_term(model::AbstractSem)
     if nsem_terms(model) != 1

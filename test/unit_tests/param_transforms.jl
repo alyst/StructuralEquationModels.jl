@@ -286,6 +286,8 @@ end
     )
     @test SEM.param_transforms(ram) isa SEM.ParamTransforms
     @test SEM.param_transforms(ram_model) isa SEM.ParamTransforms
+    @test SEM.param_transforms(ram_model) === ram_model.param_transforms
+    @test SEM.param_transforms(ram_model) === SEM.param_transforms(ram_model)
     @test SEM.start_simple(ram_model) == [1.0, 1.0]
     jittered_start = SEM.prepare_start_params(
         [1.0, 1.0], ram_model; start_params_jitter = 1.0)
@@ -340,11 +342,10 @@ end
             :v2 => TV.asℝ₊,
         ),
     )
-    conflicting_model = SEM.Sem(
+    @test_throws ArgumentError SEM.Sem(
         SEM.SemML(observed, SEM.RAM(ram)),
         SEM.SemML(observed, SEM.RAM(conflicting_ram)),
     )
-    @test_throws ArgumentError SEM.param_transforms(conflicting_model)
 
     sparse_ram = SEM.RAMMatrices(
         A = Union{Float64, Symbol}[0.0 1.0; 0.0 0.0],

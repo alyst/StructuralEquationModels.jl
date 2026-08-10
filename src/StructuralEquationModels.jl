@@ -13,6 +13,10 @@ export StenoGraphs, @StenoGraph, meld
 
 const SEM = StructuralEquationModels
 
+# parameter storage and transformation types used by the core SEM types
+include("additional_functions/params_array.jl")
+include("additional_functions/param_transforms.jl")
+
 # type hierarchy
 include("types.jl")
 include("objective_gradient_hessian.jl")
@@ -21,8 +25,6 @@ include("objective_gradient_hessian.jl")
 include("additional_functions/commutation_matrix.jl")
 include("additional_functions/quad.jl")
 include("additional_functions/sparse_utils.jl")
-include("additional_functions/params_array.jl")
-include("additional_functions/param_transforms.jl")
 
 # fitted objects
 include("frontend/fit/SemFit.jl")
