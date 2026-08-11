@@ -34,6 +34,7 @@ end
 function Sem(loss_terms...;
              params::Union{Vector{Symbol}, Nothing} = nothing,
              default_sem_weights = :n_obs,
+             metadata::NamedTuple = NamedTuple(),
 )
     default_sem_weights ∈ [:n_obs, :uniform, :one] ||
         throw(ArgumentError("Unsupported default_sem_weights=:$default_sem_weights"))
@@ -109,7 +110,7 @@ In that case, you may use RAMMatrices instead.")
         for term in terms_tuple if issemloss(term)
     ]
     merged_param_transforms = merge_param_transforms(params, transform_specs)
-    return Sem(terms_tuple, params, merged_param_transforms)
+    return Sem(terms_tuple, params, merged_param_transforms, metadata)
 end
 
 ############################################################################################
@@ -140,6 +141,14 @@ covariance transforms for a shared parameter raise an error when the [`Sem`](@re
 is constructed. The merged transformations are cached in the model.
 """
 param_transforms(model::Sem) = model.param_transforms
+
+"""
+    metadata(model::AbstractSem) -> NamedTuple
+
+Return optional metadata stored with the model. Models constructed without
+metadata return an empty named tuple.
+"""
+metadata(model::Sem) = model.metadata
 
 function sem_term(model::AbstractSem)
     if nsem_terms(model) != 1

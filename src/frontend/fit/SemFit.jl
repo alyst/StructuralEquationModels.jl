@@ -72,6 +72,7 @@ solution(sem_fit::SemFit) = sem_fit.solution
 start_params(sem_fit::SemFit) = sem_fit.start_params
 model(sem_fit::SemFit) = sem_fit.model
 optimization_result(sem_fit::SemFit) = sem_fit.optimization_result
+metadata(fit::SemFit) = metadata(model(fit))
 
 # optimizer properties
 optimizer(sem_fit::SemFit) = optimizer(optimization_result(sem_fit))

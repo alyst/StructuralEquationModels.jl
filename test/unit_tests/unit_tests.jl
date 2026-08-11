@@ -8,4 +8,6 @@ using Test, SafeTestsets
 
 @safetestset "Param Transforms" begin include("param_transforms.jl") end
 
+@safetestset "Sem Metadata" begin include("sem_metadata.jl") end
+
 @safetestset "RAMLargeSparse" begin include("largesparse.jl") end

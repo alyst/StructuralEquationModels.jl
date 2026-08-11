@@ -120,11 +120,13 @@ gradient and (optionally) Hessian.
 - `params::Vector{Symbol}`: the vector of parameter ids shared by all loss functions.
 - `param_transforms::Union{ParamTransforms, Nothing}`: parameter transformations merged from
   the RAM specifications of the SEM loss terms.
+- `metadata::NamedTuple`: optional model-construction metadata.
 """
 struct Sem{L <: Tuple} <: AbstractSem
     loss_terms::L
     params::Vector{Symbol}
     param_transforms::Union{ParamTransforms, Nothing}
+    metadata::NamedTuple = NamedTuple()
 end
 
 ############################################################################################
@@ -148,6 +150,7 @@ _unwrap(wrapper::SemFiniteDiff) = wrapper.model
 params(wrapper::SemFiniteDiff) = params(wrapper.model)
 loss_terms(wrapper::SemFiniteDiff) = loss_terms(wrapper.model)
 param_transforms(wrapper::SemFiniteDiff) = param_transforms(wrapper.model)
+metadata(wrapper::SemFiniteDiff) = metadata(wrapper.model)
 
 struct LossFiniteDiff{L <: AbstractLoss} <: AbstractLoss{ApproximateHessian}
     loss::L
