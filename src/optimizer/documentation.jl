@@ -85,6 +85,7 @@ end
 
 function prepare_start_params(start_params, model::AbstractSem;
                               start_params_jitter::Number = 0,
+                              start_params_shrink::Real = sqrt(eps(Float64)),
                               kwargs...)
     if isnothing(start_params)
         # default function for starting parameters
@@ -114,6 +115,12 @@ function prepare_start_params(start_params, model::AbstractSem;
             unconstrained_start_params .+=
                 randn(length(start_params)) * start_params_jitter
             start_params = transform_params(transforms, unconstrained_start_params)
+            if start_params_shrink > 0
+                start_params = project_to_interior(
+                    start_params, transforms;
+                    shrink = start_params_shrink,
+                )
+            end
         end
     end
     return start_params
