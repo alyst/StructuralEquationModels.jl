@@ -48,6 +48,39 @@ prepared = SEM.ParamTransforms(params, transforms)
     @test_throws DimensionMismatch SEM.ParamTransforms(params, [TV.asℝ])
 end
 
+@testset "model-space projection to transform interior" begin
+    bounded = SEM.ParamTransforms(
+        [:mean],
+        Dict(:mean => TV.as(Real, -3.0, 3.0)),
+    )
+    boundary_mean = [3.0]
+    projected_mean = SEM.project_to_interior(boundary_mean, bounded; shrink = 0.1)
+    @test projected_mean !== boundary_mean
+    @test only(boundary_mean) == 3.0
+    @test only(projected_mean) ≈ 2.7
+    @test all(isfinite, SEM.inverse_transform_params(bounded, projected_mean))
+
+    covariance_params = [:variance1, :variance2, :covariance]
+    coupled = SEM.ParamTransforms(
+        covariance_params,
+        [TV.asℝ₊, TV.asℝ₊, TV.as(Real, -1.0, 1.0) ∘ TV.TVScale(2.0)],
+        SEM.CovarianceTransforms(
+            [3],
+            [(1, 2, NaN, NaN)],
+            length(covariance_params),
+        ),
+    )
+    boundary_covariance = [4.0, 9.0, 6.0]
+    projected_covariance =
+        SEM.project_to_interior(boundary_covariance, coupled; shrink = 0.1)
+    @test projected_covariance[1:2] == boundary_covariance[1:2]
+    @test projected_covariance[3] ≈ 5.4
+    @test all(isfinite, SEM.inverse_transform_params(coupled, projected_covariance))
+    @test_throws ArgumentError SEM.project_to_interior(
+        boundary_covariance, coupled; shrink = 0.0,
+    )
+end
+
 @testset "chain rule" begin
     unconstrained_point = SEM.inverse_transform_params(prepared, [1.3, -0.2, 0.7])
     model_vals = similar(unconstrained_point)

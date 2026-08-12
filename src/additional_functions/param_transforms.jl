@@ -651,6 +651,81 @@ function interval(trf)
 end
 
 """
+    project_to_interior(model_vals, transforms; shrink=sqrt(eps(...)))
+
+Return a model-space parameter vector projected into the interior of the domains
+defined by `transforms`. `shrink` is the fraction by which each side of a scalar
+transform's model-space range is contracted toward the transform of zero. It must be
+strictly between zero and one.
+
+Coupled covariance parameters are projected after their source variances. Their
+contracted bounds are calculated on the covariance scale from the corresponding
+contracted correlation interval.
+"""
+function project_to_interior(
+    model_vals::AbstractVector,
+    transforms::ParamTransforms;
+    shrink::Real = sqrt(eps(Float64)),
+)
+    (isfinite(shrink) && 0 < shrink < 1) || throw(ArgumentError(
+        "shrink must be finite and strictly between zero and one, got $shrink",
+    ))
+    proj = float.(model_vals)
+    check_params_vector(proj, transforms, model_vals)
+    cov_indices = Set(
+        transforms.covariance_transforms.covariance_indices,
+    )
+
+    function _lower_interior_upper(trf)
+        pt1, pt2, pt3 = TransformVariables.transform.(Ref(trf), (-Inf, 0.0, Inf))
+        (isa(pt1, Real) && isa(pt2, Real) && isa(pt3, Real)) || throw(ArgumentError(
+            "Scalar transforms must map infinite real coordinates to real endpoints",
+        ))
+        (isnan(pt1) || isnan(pt2) || isnan(pt3)) && throw(ArgumentError(
+            "Scalar transform $(typeof(trf)) has a NaN model-space endpoint",
+        ))
+        l, u = minmax(pt1, pt3)
+        (l <= pt2 <= u) || throw(ArgumentError(
+            "Scalar transform $(typeof(trf)) does not map zero to the interior " *
+            "of its model-space range $l..$u",
+        ))
+        return l, pt2, u
+    end
+
+    function _shrink(l, interior, u)
+        shrunk_l = isfinite(l) ? l + shrink * (interior - l) : nextfloat(l)
+        shrunk_u = isfinite(u) ? u + shrink * (interior - u) : prevfloat(u)
+        shrunk_l <= shrunk_u || throw(ArgumentError(
+            "Transform interval becomes empty with shrink=$shrink",
+        ))
+        return shrunk_l, shrunk_u
+    end
+
+    _project_scalar(value, l, interior, u) = isnan(value) ? interior : clamp(value, l, u)
+
+    for (i, trf) in enumerate(transforms.transforms)
+        i in cov_indices && continue
+        l, interior, u = _lower_interior_upper(trf)
+        l, u = _shrink(l, interior, u)
+        proj[i] = _project_scalar(proj[i], l, interior, u)
+    end
+
+    cov_trfs = transforms.covariance_transforms
+    for (i, var_srcs) in zip(cov_trfs.covariance_indices, cov_trfs.variance_sources)
+        _, _, cov_scale = var1_var2_covscale(proj, var_srcs)
+        trf = transforms.transforms[i]
+        l, interior, u = _lower_interior_upper(trf)
+        l, u = max(l, -1.0), min(u, 1.0)
+        interior = clamp(interior, l, u)
+        l, u = _shrink(l, interior, u)
+        proj[i] = _project_scalar(proj[i], l * cov_scale, interior * cov_scale, u * cov_scale)
+    end
+
+    # inverse_transform_params(transforms, proj) # check projected values validity
+    return proj
+end
+
+"""
     pullback_param_gradient!(
         unconstrained_gradient,
         model_gradient,
