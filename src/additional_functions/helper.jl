@@ -213,7 +213,17 @@ function trunc_eigvals(
     issymmetric(mtx) || throw(ArgumentError("Matrix must be symmetric"))
 
     # eigen decomposition of the mtx
-    mtx_eig = eigen(convert(Matrix{T}, mtx))
+    local mtx_eig
+    try
+        mtx_eig = eigen(convert(Matrix{T}, mtx))
+    catch error
+        # fallback to QRIteration (syev!) if RobustRepresentations (syver!) generates LAPACKException
+        if error isa LinearAlgebra.LAPACKException
+            mtx_eig = eigen(Symmetric(convert(Matrix{T}, mtx)); alg = LinearAlgebra.QRIteration())
+        else
+            rethrow()
+        end
+    end
     verbose &&
         @info "min(eigvals($mtx_label))=$(Base.minimum(mtx_eig.values)), N(eigvals < $min_eigval) = $(sum(<(min_eigval), mtx_eig.values))"
 
