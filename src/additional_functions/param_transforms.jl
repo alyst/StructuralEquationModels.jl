@@ -612,6 +612,45 @@ inverse_transform_params(
         transforms, model_vals)
 
 """
+    is_nonneg_transform(transform)
+
+Return whether the scalar `transform` maps the extended real line to nonnegative
+values. This is useful when deciding whether a separate nonnegativity constraint or
+penalty would be redundant.
+"""
+function is_nonneg_transform(trf)
+    range = try
+        (
+            TransformVariables.transform(trf, -Inf),
+            TransformVariables.transform(trf, Inf),
+        )
+    catch
+        nothing
+    end
+    return !isnothing(range) &&
+        (range[1] isa Number) && (range[1] >= 0) &&
+        (range[2] isa Number) && (range[2] >= 0)
+end
+
+"""
+    interval(transform) -> Tuple{Real, Real}
+
+Return the model-space interval corresponding to the scalar `transform`.
+The lower and upper bounds are the images of `-Inf` and `Inf` under the transform.
+"""
+function interval(trf)
+    pt1 = TransformVariables.transform(trf, -Inf)
+    pt2 = TransformVariables.transform(trf, Inf)
+    (pt1 isa Real && pt2 isa Real) || throw(ArgumentError(
+        "Scalar transforms must map infinite real coordinates to real endpoints",
+    ))
+    (isnan(pt1) || isnan(pt2)) && throw(ArgumentError(
+        "Scalar transform $(typeof(trf)) has a NaN model-space endpoint",
+    ))
+    return minmax(pt1, pt2)
+end
+
+"""
     pullback_param_gradient!(
         unconstrained_gradient,
         model_gradient,
@@ -648,25 +687,4 @@ function pullback_param_gradient!(
     end
     unconstrained_grad .*= scalar_derivatives
     return unconstrained_grad
-end
-
-"""
-    is_nonneg_transform(transform)
-
-Return whether the scalar `transform` maps the extended real line to nonnegative
-values. This is useful when deciding whether a separate nonnegativity constraint or
-penalty would be redundant.
-"""
-function is_nonneg_transform(trf)
-    range = try
-        (
-            TransformVariables.transform(trf, -Inf),
-            TransformVariables.transform(trf, Inf),
-        )
-    catch
-        nothing
-    end
-    return !isnothing(range) &&
-        (range[1] isa Number) && (range[1] >= 0) &&
-        (range[2] isa Number) && (range[2] >= 0)
 end
