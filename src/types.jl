@@ -126,7 +126,14 @@ struct Sem{L <: Tuple} <: AbstractSem
     loss_terms::L
     params::Vector{Symbol}
     param_transforms::Union{ParamTransforms, Nothing}
-    metadata::NamedTuple = NamedTuple()
+    metadata::NamedTuple
+
+    Sem(
+        loss_terms::L,
+        params::AbstractVector{Symbol},
+        param_transforms::Union{ParamTransforms, Nothing} = nothing,
+        metadata::NamedTuple = NamedTuple(),
+    ) where {L <: Tuple} = new{L}(loss_terms, params, param_transforms, metadata)
 end
 
 ############################################################################################
