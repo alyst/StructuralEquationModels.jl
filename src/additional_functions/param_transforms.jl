@@ -319,6 +319,29 @@ allidentity(transforms::ParamTransforms) =
     all(==(TransformVariables.asℝ), transforms.transforms)
 
 """
+    nparams(transforms::ParamTransforms; model::Bool = true)
+
+Return the number of parameters described by `transforms`. With `model = true`
+(default), return the total model-space count, including derived parameters
+defined by `transforms.linear_combinations`. With `model = false`,
+return the number of free parameters, same as [`nparams_free`](@ref).
+"""
+nparams(transforms::ParamTransforms; model::Bool = true) = nparams_free(transforms)
+
+"""
+    nparams_free(transforms::ParamTransforms)
+
+Return the number of free/unconstrained (optimizer-space) parameters, i.e. the number
+of entries in `transforms.transforms`. Derived parameters defined by
+`transforms.linear_combinations` have no independent unconstrained
+coordinate and are excluded.
+"""
+nparams_free(transforms::ParamTransforms) = length(transforms.transforms)
+
+# synonym
+nparams_unconstrained(transforms::ParamTransforms) = nparams_free(transforms)
+
+"""
     nonidentity_transformed_params(params, transforms)
 
 Return the set of parameter names whose transformations affect model evaluation.
@@ -336,12 +359,17 @@ function nonidentity_transformed_params(
     )
 end
 
-function check_params_vector(destination, transforms::ParamTransforms, source)
-    length(source) == length(transforms.transforms) ||
-        throw(DimensionMismatch("The parameter vector length ($(length(source))) does not match " *
-                                "the number of transformations ($(length(transforms.transforms)))"))
-    length(destination) == length(source) ||
-        throw(DimensionMismatch("Source and destination parameter vectors have different lengths"))
+function check_free_params_vector(vec::AbstractVector, transforms::ParamTransforms)
+    length(vec) == nparams_free(transforms) ||
+        throw(DimensionMismatch("The parameter vector length ($(length(vec))) does not match " *
+                                "the number of free parameters ($(nparams_free(transforms)))"))
+    return nothing
+end
+
+function check_model_params_vector(vec::AbstractVector, transforms::ParamTransforms)
+    length(vec) == nparams(transforms) ||
+        throw(DimensionMismatch("The parameter vector length ($(length(vec))) does not match " *
+                                "the number of model parameters ($(nparams(transforms)))"))
     return nothing
 end
 
@@ -506,7 +534,8 @@ function transform_params!(
     transforms::ParamTransforms,
     unconstrained_vals::AbstractVector,
 )
-    check_params_vector(model_vals, transforms, unconstrained_vals)
+    check_free_params_vector(unconstrained_vals, transforms)
+    check_model_params_vector(model_vals, transforms)
     if !isnothing(scalar_derivatives)
         length(scalar_derivatives) == length(unconstrained_vals) ||
             throw(DimensionMismatch(
@@ -530,7 +559,7 @@ destination vector are needed.
 transform_params(
     transforms::ParamTransforms, unconstrained_vals::AbstractVector) =
     transform_params!(
-        similar(unconstrained_vals), nothing, transforms, unconstrained_vals)
+        similar(unconstrained_vals, nparams(transforms)), nothing, transforms, unconstrained_vals)
 
 function _inverse_transform_param_group!(
     unconstrained_vals, scalar_derivatives, group)
@@ -582,13 +611,14 @@ function inverse_transform_params!(
     transforms::ParamTransforms,
     model_vals::AbstractVector,
 )
-    check_params_vector(unconstrained_vals, transforms, model_vals)
+    check_model_params_vector(model_vals, transforms)
+    check_free_params_vector(unconstrained_vals, transforms)
     if !isnothing(scalar_derivatives)
-        length(scalar_derivatives) == length(model_vals) ||
+        length(scalar_derivatives) == length(unconstrained_vals) ||
             throw(DimensionMismatch(
                 "Derivative and parameter vectors have different lengths"))
     end
-    copyto!(unconstrained_vals, model_vals)
+    copyto!(unconstrained_vals, 1, model_vals, 1, length(unconstrained_vals))
     _unscale_covariances!(
         unconstrained_vals, transforms.covariance_transforms, model_vals)
     foreach(transforms.groups) do group
@@ -608,7 +638,7 @@ destination vector are needed.
 inverse_transform_params(
     transforms::ParamTransforms, model_vals::AbstractVector) =
     inverse_transform_params!(
-        similar(model_vals, float(eltype(model_vals))), nothing,
+        similar(model_vals, float(eltype(model_vals)), nparams_free(transforms)),
         transforms, model_vals)
 
 """
@@ -671,7 +701,7 @@ function project_to_interior(
         "shrink must be finite and strictly between zero and one, got $shrink",
     ))
     proj = float.(model_vals)
-    check_params_vector(proj, transforms, model_vals)
+    check_model_params_vector(proj, transforms)
     cov_indices = Set(
         transforms.covariance_transforms.covariance_indices,
     )
@@ -747,7 +777,11 @@ function pullback_param_gradient!(
     scalar_derivatives::AbstractVector,
     transforms::ParamTransforms
 )
-    copyto!(unconstrained_grad, model_grad)
+    check_model_params_vector(model_grad, transforms)
+    check_model_params_vector(model_vals, transforms)
+    check_free_params_vector(unconstrained_grad, transforms)
+    nfree = length(transforms.transforms)
+    copyto!(unconstrained_grad, 1, model_grad, 1, nfree)
     cov_trfs = transforms.covariance_transforms
     @inbounds for (cov_ix, var_src) in zip(cov_trfs.covariance_indices, cov_trfs.variance_sources)
         var1_ix, var2_ix = var_src[1], var_src[2]

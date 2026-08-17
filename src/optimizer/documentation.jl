@@ -73,9 +73,9 @@ function evaluate_unconstrained!(
     scalar_derivs = isnothing(unconstrained_gradient) || isnothing(param_trfs) ? nothing :
         similar(unconstrained_vals)
     model_vals = isnothing(param_trfs) ? unconstrained_vals :
-        transform_params!(similar(unconstrained_vals), scalar_derivs, param_trfs, unconstrained_vals)
+        transform_params!(similar(unconstrained_vals, nparams(param_trfs, model=true)), scalar_derivs, param_trfs, unconstrained_vals)
 
-    model_grad = isnothing(scalar_derivs) ? unconstrained_gradient : similar(unconstrained_vals)
+    model_grad = isnothing(scalar_derivs) ? unconstrained_gradient : similar(model_vals)
     res = evaluate!(objective, model_grad, nothing, model, model_vals)
     isnothing(scalar_derivs) || pullback_param_gradient!(
         unconstrained_gradient, model_grad, model_vals,
@@ -113,7 +113,7 @@ function prepare_start_params(start_params, model::AbstractSem;
             unconstrained_start_params = inverse_transform_params(
                 transforms, start_params)
             unconstrained_start_params .+=
-                randn(length(start_params)) * start_params_jitter
+                randn(length(unconstrained_start_params)) * start_params_jitter
             start_params = transform_params(transforms, unconstrained_start_params)
             if start_params_shrink > 0
                 start_params = project_to_interior(

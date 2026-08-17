@@ -20,7 +20,10 @@ param_transforms(ram::RAMMatrices) = ram.param_transforms
 
 MeanStructure(ram::RAMMatrices) = isnothing(ram.M) ? NoMeanStructure() : HasMeanStructure()
 
-nparams(ram::RAMMatrices) = nparams(ram.A)
+nparams(ram::RAMMatrices; model::Bool = true) =
+    model ? nparams(ram.A) : nparams_unconstrained(ram)
+nparams_unconstrained(ram::RAMMatrices) =
+    isnothing(ram.param_transforms) ? nparams(ram.A) : nparams_unconstrained(ram.param_transforms)
 nvars(ram::RAMMatrices) = size(ram.F, 2)
 nobserved_vars(ram::RAMMatrices) = size(ram.F, 1)
 nlatent_vars(ram::RAMMatrices) = nvars(ram) - nobserved_vars(ram)
@@ -120,10 +123,10 @@ function RAMMatrices(; A::AbstractMatrix, S::AbstractMatrix,
         throw(ArgumentError("F should contain only 0s and 1s"))
     end
     if param_transforms isa ParamTransforms
-        length(param_transforms.transforms) == length(params) ||
+        nparams(param_transforms) == length(params) ||
             throw(DimensionMismatch(
                 "The number of parameter transformations " *
-                "($(length(param_transforms.transforms))) does not match the number " *
+                "($(nparams(param_transforms))) does not match the number " *
                 "of model parameters ($(length(params)))"))
     elseif !isnothing(param_transforms)
         param_transforms = ParamTransforms(params, param_transforms)
@@ -247,10 +250,10 @@ function RAMMatrices(partable::ParameterTable;
     end
 
     if param_transforms isa ParamTransforms
-        length(param_transforms.transforms) == length(params) ||
+        nparams(param_transforms) == length(params) ||
             throw(DimensionMismatch(
                 "The number of parameter transformations " *
-                "($(length(param_transforms.transforms))) does not match the number " *
+                "($(nparams(param_transforms))) does not match the number " *
                 "of model parameters ($(length(params)))"))
     elseif !isnothing(param_transforms)
         param_transforms = ParamTransforms(params, param_transforms)

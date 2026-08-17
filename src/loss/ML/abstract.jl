@@ -19,9 +19,11 @@ end
 for f in (:vars, :nvars,
           :latent_vars, :nlatent_vars,
           :observed_vars, :nobserved_vars,
-          :params, :nparams)
+          :params)
     @eval $f(loss::SemLoss) = $f(imply(loss))
 end
+nparams(loss::SemLoss; model::Bool = true) = nparams(imply(loss); model)
+nparams_unconstrained(loss::SemLoss) = nparams_unconstrained(imply(loss))
 
 #=
 params(model::SemLoss) = params(imply(model))

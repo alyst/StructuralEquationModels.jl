@@ -119,13 +119,13 @@ end
 
 function _transformed_NLopt_constraint(constraint, transforms::SEM.ParamTransforms)
     return function (unconstrained_vals, unconstrained_gradient)
-        model_vals = similar(unconstrained_vals)
+        model_vals = similar(unconstrained_vals, SEM.nparams(transforms))
         if isempty(unconstrained_gradient)
             SEM.transform_params!(
                 model_vals, nothing, transforms, unconstrained_vals)
             return constraint(model_vals, unconstrained_gradient)
         end
-        model_gradient = similar(unconstrained_vals)
+        model_gradient = similar(model_vals)
         scalar_derivatives = similar(unconstrained_vals)
         SEM.transform_params!(
             model_vals, scalar_derivatives, transforms, unconstrained_vals)

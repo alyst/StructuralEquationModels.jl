@@ -8,7 +8,8 @@ nobserved_vars(imply::SemImply) = nobserved_vars(imply.ram_matrices)
 nlatent_vars(imply::SemImply) = nlatent_vars(imply.ram_matrices)
 
 params(imply::SemImply) = params(imply.ram_matrices)
-nparams(imply::SemImply) = nparams(imply.ram_matrices)
+nparams(imply::SemImply; model::Bool = true) = nparams(imply.ram_matrices; model)
+nparams_unconstrained(imply::SemImply) = nparams_unconstrained(imply.ram_matrices)
 
 param_transforms(imply::SemImply) = param_transforms(imply.ram_matrices)
 
