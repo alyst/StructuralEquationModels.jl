@@ -190,7 +190,7 @@ CovarianceTransforms(
 
 Base.isempty(transforms::CovarianceTransforms) = isempty(transforms.covariance_indices)
 
-function _scale_covariances!(model_vals, transforms::CovarianceTransforms)
+function apply_param_transforms!(model_vals, transforms::CovarianceTransforms)
     (; covariance_indices, variance_sources) = transforms
     @inbounds for k in eachindex(covariance_indices)
         _, _, covscale = var1_var2_covscale(model_vals, variance_sources[k])
@@ -217,27 +217,222 @@ function _unscale_covariances!(
     return unconstrained_vals
 end
 
+function pullback_param_gradient!(
+    unconstrained_grad, model_grad, model_vals, cov_trfs::CovarianceTransforms,
+)
+    @inbounds for (cov_ix, var_src) in zip(cov_trfs.covariance_indices, cov_trfs.variance_sources)
+        var1_ix, var2_ix = var_src[1], var_src[2]
+        var1, var2, covscale = var1_var2_covscale(model_vals, var_src)
+        cov_val = model_vals[cov_ix]
+        cov_grad = unconstrained_grad[cov_ix]
+        unconstrained_grad[cov_ix] = cov_grad * covscale
+        iszero(var1_ix) ||
+            (unconstrained_grad[var1_ix] += cov_grad * cov_val / (2 * var1))
+        iszero(var2_ix) ||
+            (unconstrained_grad[var2_ix] += cov_grad * cov_val / (2 * var2))
+    end
+    return unconstrained_grad
+end
+
 """
-    ParamTransforms(params, transforms[, covariance_transforms])
+    LinearCombinationTransforms(matrix, nfree)
+
+Linear map from the `nfree` unconstrained-backed (free) model parameters to
+derived model parameters that have no independent unconstrained
+coordinate: `derived_vals = matrix * free_vals`. `matrix` is `nderived × nfree`,
+dense or sparse. Derived parameters are appended right after the free ones, so
+`target_indices` is `nfree+1:nfree+nderived`.
+"""
+struct LinearCombinationTransforms{M <: AbstractMatrix{<:Real}}
+    target_indices::Vector{Int}
+    matrix::M
+end
+
+function check_linear_combination_transforms(
+    matrix::AbstractMatrix{<:Real},
+    last_params_index::Integer
+)
+    last_params_index >= 0 || throw(ArgumentError(
+        "The last parameter index must be nonnegative, got $last_params_index"))
+    size(matrix, 2) <= last_params_index || throw(DimensionMismatch(
+        "last_params_index ($last_params_index) must not be less than the number of matrix columns ($(size(matrix, 2)))"))
+    return nothing
+end
+
+"""
+    check_linear_combination_transforms(linear_combinations::LinearCombinationTransforms, nfree::Integer)
+
+Validate that `linear_combinations`'s derived-parameter target indices form the
+trailing, contiguous block right after the `nfree` free (unconstrained)
+parameters, as required by [`ParamTransforms`](@ref).
+"""
+function check_linear_combination_transforms(
+    linear_combinations::LinearCombinationTransforms,
+    nfree::Integer,
+)
+    nfree >= 0 || throw(ArgumentError(
+        "The number of free parameters must be nonnegative, got $nfree"))
+    size(linear_combinations.matrix, 2) <= nfree || throw(DimensionMismatch(
+        "The linear-combination matrix has $(size(linear_combinations.matrix, 2)) columns, " *
+        "which exceeds the number of free parameters ($nfree)"))
+    nderived = nparams_derived(linear_combinations)
+    expected_indices = collect((nfree + 1):(nfree + nderived))
+    linear_combinations.target_indices == expected_indices || throw(ArgumentError(
+        "Derived parameter target indices must be the trailing $nderived indices " *
+        "right after the $nfree free parameters (expected $expected_indices, " *
+        "got $(linear_combinations.target_indices))"))
+    return nothing
+end
+
+function LinearCombinationTransforms(
+    matrix::AbstractMatrix{<:Real},
+    last_params_index::Integer = nparams_free
+)
+    check_linear_combination_transforms(matrix, last_params_index)
+    return LinearCombinationTransforms(
+        collect((last_params_index + 1):(last_params_index + size(matrix, 1))), matrix)
+end
+
+LinearCombinationTransforms(::Nothing = nothing) =
+    LinearCombinationTransforms(spzeros(Float64, 0, 0), 0)
+
+Base.isempty(lin_comb::LinearCombinationTransforms) = isempty(lin_comb.target_indices)
+nparams_derived(lin_comb::LinearCombinationTransforms) = length(lin_comb.target_indices)
+
+"""
+    mean_transforms(averaged_params, last_param_index)
+
+For each vector of parameter indices in `averaged_params`, add one derived
+parameter equal to the unweighted mean of the referenced parameters. Derived
+parameters are appended right after `last_param_index`, one per entry of
+`averaged_params`, in order.
+"""
+function mean_transforms(
+    averaged_params::AbstractVector{<:AbstractVector{<:Integer}},
+    nparams_free::Integer,
+    last_param_index::Integer = nparams_free,
+)
+    rows = Int[]
+    cols = Int[]
+    weights = Float64[]
+    for (k, par_ixs) in enumerate(averaged_params)
+        isempty(par_ixs) && throw(ArgumentError(
+            "Each derived parameter must average at least one source parameter"))
+        weight = inv(length(par_ixs))
+        for par_ix in par_ixs
+            0 < par_ix <= nparams_free || throw(ArgumentError(
+                "Averaged parameter index $par_ix must be between 1 and nparams_free=$nparams_free"))
+            push!(rows, k)
+            push!(cols, par_ix)
+            push!(weights, weight)
+        end
+    end
+    return LinearCombinationTransforms(
+        sparse(rows, cols, weights, length(averaged_params), nparams_free),
+        last_param_index)
+end
+
+"""
+    mean_transforms(
+        matrix::ParamsMatrix, row_groups::AbstractVector{<:Integer},
+        last_param_index::Integer,
+    )
+
+Build derived parameters that average grouped elements of a set of source factors.
+`matrix` is a `nrows × nfactors` [`ParamsMatrix`](@ref) whose columns are the
+source factors, rows are observables, and elements are the parameter
+indices (fixed/zero cells are ignored). `row_groups` assigns each
+observable (row of `matrix`) to a group, e.g. the plate a sample belongs to.
+`last_param_index` is the current index of the last model parameter created.
+
+For every source factor column and every group that contains at least one loading
+parameter, a derived parameter equal to the unweighted mean of that column's
+loading parameters within the group is appended. Derived parameters are ordered by
+factor column, then by ascending group id.
+"""
+function mean_transforms(
+    matrix::ParamsMatrix,
+    row_groups::AbstractVector{<:Integer},
+    nparams_free::Integer = nparams(matrix),
+    last_param_index::Integer = nparams_free,
+)
+    nrows, ncols = size(matrix)
+    length(row_groups) == nrows || throw(DimensionMismatch(
+        "row_groups length ($(length(row_groups))) does not match " *
+        "the number of observables ($nrows)"))
+    nparams(matrix) >= last_param_index || throw(ArgumentError(
+        "last_param_index ($last_param_index) exceeds the number of parameters in the matrix " *
+        "($(nparams(matrix)))"))
+
+    # cell (row, col) -> parameter index (0 if the cell is a constant or unused)
+    param_of_cell = zeros(Int, nrows, ncols)
+    for i in 1:nparams(matrix)
+        for lin_ind in param_occurences(matrix, i)
+            param_of_cell[lin_ind] = i
+        end
+    end
+
+    averaged_params = Vector{Int}[]
+    for j in 1:ncols
+        group_params = Dict{Int, Vector{Int}}()
+        for i in 1:nrows
+            par_ind = param_of_cell[i, j]
+            iszero(par_ind) && continue
+            push!(get!(() -> Int[], group_params, row_groups[i]), par_ind)
+        end
+        for group in sort!(collect(keys(group_params)))
+            push!(averaged_params, group_params[group])
+        end
+    end
+    return mean_transforms(averaged_params, nparams_free, last_param_index)
+end
+
+function apply_param_transforms!(model_vals, lin_combs::LinearCombinationTransforms)
+    isempty(lin_combs) && return model_vals
+    nfree = size(lin_combs.matrix, 2)
+    mul!(view(model_vals, lin_combs.target_indices), lin_combs.matrix, view(model_vals, 1:nfree))
+    return model_vals
+end
+
+function pullback_param_gradient!(
+    unconstrained_grad, model_grad, model_vals, lin_combs::LinearCombinationTransforms,
+)
+    isempty(lin_combs) ||
+        mul!(unconstrained_grad, transpose(lin_combs.matrix),
+            view(model_grad, lin_combs.target_indices), true, true)
+    return unconstrained_grad
+end
+
+"""
+    ParamTransforms(params, transforms[, covariance_transforms[, linear_combinations]])
 
 Transformations between two parameter spaces:
 
-- **model values** are parameters on the scale used by the RAM matrices and losses;
-- **unconstrained values** are coordinates in `ℝⁿ` passed to the optimizer.
+- **model values** are parameters on the scale used by the RAM matrices and losses,
+  including any derived parameters defined by `linear_combinations`;
+- **unconstrained values** are coordinates in `ℝⁿ` passed to the optimizer, one per
+  entry of `params`.
 
 `transform_params` maps unconstrained values to model values, and
-`inverse_transform_params` maps model values to unconstrained values. `transforms`
-can be a vector in `params` order or a dictionary keyed by parameter name.
-Missing dictionary entries use `TransformVariables.asℝ`.
+`inverse_transform_params` maps model values to unconstrained values (derived
+parameters have no independent unconstrained coordinate and are dropped/recomputed
+rather than inverted). `transforms` can be a vector in `params` order or a
+dictionary keyed by parameter name. Missing dictionary entries use
+`TransformVariables.asℝ`.
 
 Scalar transformations are applied first. For indices listed in
 `covariance_transforms`, the scalar result is interpreted as a correlation `ρ` and
-replaced by `ρ * sqrt(variance1 * variance2)`.
+replaced by `ρ * sqrt(variance1 * variance2)`. Derived parameters, defined by
+`linear_combinations` as linear combinations of the (already scaled)
+`params` model values, are appended last. Use [`nparams`](@ref) for the total
+model-space count and [`nparams_free`](@ref) for the `length(params)`
+unconstrained count.
 """
-struct ParamTransforms{G <: Tuple, C <: CovarianceTransforms}
+struct ParamTransforms{G <: Tuple, C <: CovarianceTransforms, L <: LinearCombinationTransforms}
     transforms::Vector{Any}
     groups::G
     covariance_transforms::C
+    linear_combinations::L
 end
 
 struct ParamTransformGroup{T}
@@ -267,8 +462,10 @@ end
 function ParamTransforms(
     params::AbstractVector{Symbol}, scalar_transforms,
     covariance_transforms::CovarianceTransforms = CovarianceTransforms(),
+    linear_combinations::LinearCombinationTransforms = LinearCombinationTransforms(),
 )
     check_param_transforms(params, scalar_transforms, covariance_transforms)
+    check_linear_combination_transforms(linear_combinations, length(params))
     trfs = if scalar_transforms isa AbstractDict
         Any[get(scalar_transforms, param, TransformVariables.asℝ) for param in params]
     else
@@ -284,7 +481,7 @@ function ParamTransforms(
         trf_type[trfs[i] for i in trf_ixs],
         [is_flipped(trfs[i]) for i in trf_ixs]
     ) for (trf_type, trf_ixs) in pairs(trf_type_map))
-    return ParamTransforms(trfs, trf_groups, covariance_transforms)
+    return ParamTransforms(trfs, trf_groups, covariance_transforms, linear_combinations)
 end
 
 function check_param_transforms(
@@ -316,6 +513,7 @@ Covariance scaling is non-identity regardless of its scalar transformation.
 """
 allidentity(transforms::ParamTransforms) =
     isempty(transforms.covariance_transforms) &&
+    isempty(transforms.linear_combinations) &&
     all(==(TransformVariables.asℝ), transforms.transforms)
 
 """
@@ -326,7 +524,9 @@ Return the number of parameters described by `transforms`. With `model = true`
 defined by `transforms.linear_combinations`. With `model = false`,
 return the number of free parameters, same as [`nparams_free`](@ref).
 """
-nparams(transforms::ParamTransforms; model::Bool = true) = nparams_free(transforms)
+nparams(transforms::ParamTransforms; model::Bool = true) =
+    model ? nparams_free(transforms) + nparams_derived(transforms.linear_combinations) :
+        nparams_free(transforms)
 
 """
     nparams_free(transforms::ParamTransforms)
@@ -379,8 +579,13 @@ end
 Merge parameter transformations into `target_params` order. Each entry of
 `transform_specs` is `source_params => transforms`, where `transforms` may be
 `nothing`. Parameters absent from a source do not participate in consistency
-checking; parameters shared by multiple sources must have identical scalar and
-covariance transformations.
+checking; parameters shared by multiple sources must have identical scalar,
+covariance, and derived (linear-combination) definitions.
+
+Derived parameters declared by a source's `linear_combinations` must end up
+as the last entries of `target_params` (in some order), since a `ParamTransforms`
+requires its derived parameters to be contiguous and trailing; an `ArgumentError` is
+thrown otherwise.
 """
 function merge_param_transforms(
     target_params::AbstractVector{Symbol}, transform_specs
@@ -392,17 +597,18 @@ function merge_param_transforms(
     scalar_seen = falses(length(target_params))
     merged_cov_trfs =
         Dict{Int, Union{Nothing, Tuple{Int, Int, Real, Real}}}()
+    merged_lincomb_srcs = Dict{Symbol, Vector{Pair{Symbol, Float64}}}()
 
     for (src_pars, trfs) in transform_specs
         src_pars isa AbstractVector{Symbol} || throw(ArgumentError(
             "Transformation source parameters must be an AbstractVector{Symbol}"))
         allunique(src_pars) ||
             throw(ArgumentError("Transformation source parameter names must be unique"))
-        if !isnothing(trfs) &&
-                length(trfs.transforms) != length(src_pars)
+        nfree_src = isnothing(trfs) ? length(src_pars) : length(trfs.transforms)
+        if !isnothing(trfs) && nparams(trfs) != length(src_pars)
             throw(DimensionMismatch(
-                "The number of parameter transformations " *
-                "($(length(trfs.transforms))) does not match the number " *
+                "The number of parameters described by the transforms " *
+                "($(nparams(trfs))) does not match the number " *
                 "of source parameters ($(length(src_pars)))"))
         end
 
@@ -426,13 +632,39 @@ function merge_param_transforms(
             end
         end
 
+        if !isnothing(trfs) && !isempty(trfs.linear_combinations)
+            lin_comb = trfs.linear_combinations
+            for (row, src_der_ix) in enumerate(lin_comb.target_indices)
+                der_param = src_pars[src_der_ix]
+                target_der_ix = get(target_par2ix, der_param, 0)
+                iszero(target_der_ix) && throw(ArgumentError(
+                    "Derived parameter :$der_param is absent from the target parameters"))
+                srcs = Pair{Symbol, Float64}[
+                    src_pars[src_ix] => Float64(lin_comb.matrix[row, src_ix])
+                    for src_ix in 1:size(lin_comb.matrix, 2) if !iszero(lin_comb.matrix[row, src_ix])
+                ]
+                sort!(srcs; by = first)
+                if haskey(merged_lincomb_srcs, der_param)
+                    isequal(merged_lincomb_srcs[der_param], srcs) || throw(ArgumentError(
+                        "Conflicting linear-combination definitions for derived " *
+                        "parameter :$der_param"))
+                else
+                    merged_lincomb_srcs[der_param] = srcs
+                end
+            end
+        end
+
         for (src_ix, param) in enumerate(src_pars)
             target_ix = get(target_par2ix, param, 0)
             iszero(target_ix) && throw(ArgumentError(
                 "Parameter :$param is absent from the target parameters"))
+            src_ix > nfree_src && continue # derived parameter, handled above
+
             trf = isnothing(trfs) ? TransformVariables.asℝ : trfs.transforms[src_ix]
-            if scalar_seen[target_ix] && !isequal(scalar_transforms[target_ix], trf)
-                throw(ArgumentError("Conflicting scalar transforms for parameter :$param"))
+            prev_trf = scalar_transforms[target_ix]
+            if scalar_seen[target_ix] && !isequal(prev_trf, trf)
+                throw(ArgumentError("Conflicting scalar transforms for parameter :$param: " *
+                                    "$(prev_trf) vs $(trf)"))
             end
             scalar_transforms[target_ix] = trf
             scalar_seen[target_ix] = true
@@ -452,7 +684,37 @@ function merge_param_transforms(
         target_ix for (target_ix, variance_sources) in merged_cov_trfs
         if !isnothing(variance_sources)
     ])
-    if isempty(target_cov_par_ixs) && all(==(TransformVariables.asℝ), scalar_transforms)
+
+    npars_derived = length(merged_lincomb_srcs)
+    nfree_target = length(target_params) - npars_derived
+    lincomb_trf = if npars_derived == 0
+        LinearCombinationTransforms()
+    else
+        der_target_ixs = sort!(Int[target_par2ix[p] for p in keys(merged_lincomb_srcs)])
+        der_target_ixs == collect((nfree_target + 1):length(target_params)) || throw(ArgumentError(
+            "Merged derived (linear-combination) parameters must be the last entries " *
+            "of the target parameter list; found at positions $der_target_ixs, " *
+            "expected $(nfree_target + 1):$(length(target_params))"))
+        rows = Int[]
+        cols = Int[]
+        vals = Float64[]
+        for (row, target_ix) in enumerate(der_target_ixs)
+            for (src_param, weight) in merged_lincomb_srcs[target_params[target_ix]]
+                src_target_ix = get(target_par2ix, src_param, 0)
+                (iszero(src_target_ix) || src_target_ix > nfree_target) && throw(ArgumentError(
+                    "Derived parameter :$(target_params[target_ix]) depends on :$src_param, " *
+                    "which is not among the target's free parameters"))
+                push!(rows, row)
+                push!(cols, src_target_ix)
+                push!(vals, weight)
+            end
+        end
+        LinearCombinationTransforms(
+            sparse(rows, cols, vals, length(der_target_ixs), nfree_target), nfree_target)
+    end
+
+    if isempty(target_cov_par_ixs) && isempty(merged_lincomb_srcs) &&
+            all(==(TransformVariables.asℝ), scalar_transforms)
         return nothing
     else
         cov_trfs = CovarianceTransforms(
@@ -461,7 +723,9 @@ function merge_param_transforms(
                 merged_cov_trfs[cov_ix] for cov_ix in target_cov_par_ixs],
             length(target_params)
         )
-        return ParamTransforms(target_params, scalar_transforms, cov_trfs)
+        return ParamTransforms(
+            target_params[1:nfree_target], scalar_transforms[1:nfree_target],
+            cov_trfs, lincomb_trf)
     end
 end
 
@@ -545,7 +809,8 @@ function transform_params!(
         _transform_param_group!(
             model_vals, scalar_derivatives, group, unconstrained_vals)
     end
-    _scale_covariances!(model_vals, transforms.covariance_transforms)
+    apply_param_transforms!(model_vals, transforms.covariance_transforms)
+    apply_param_transforms!(model_vals, transforms.linear_combinations)
     return model_vals
 end
 
@@ -639,7 +904,7 @@ inverse_transform_params(
     transforms::ParamTransforms, model_vals::AbstractVector) =
     inverse_transform_params!(
         similar(model_vals, float(eltype(model_vals)), nparams_free(transforms)),
-        transforms, model_vals)
+        nothing, transforms, model_vals)
 
 """
     is_nonneg_transform(transform)
@@ -751,6 +1016,7 @@ function project_to_interior(
         proj[i] = _project_scalar(proj[i], l * cov_scale, interior * cov_scale, u * cov_scale)
     end
 
+    apply_param_transforms!(proj, transforms.linear_combinations)
     # inverse_transform_params(transforms, proj) # check projected values validity
     return proj
 end
@@ -782,18 +1048,10 @@ function pullback_param_gradient!(
     check_free_params_vector(unconstrained_grad, transforms)
     nfree = length(transforms.transforms)
     copyto!(unconstrained_grad, 1, model_grad, 1, nfree)
-    cov_trfs = transforms.covariance_transforms
-    @inbounds for (cov_ix, var_src) in zip(cov_trfs.covariance_indices, cov_trfs.variance_sources)
-        var1_ix, var2_ix = var_src[1], var_src[2]
-        var1, var2, covscale = var1_var2_covscale(model_vals, var_src)
-        cov_val = model_vals[cov_ix]
-        cov_grad = model_grad[cov_ix]
-        unconstrained_grad[cov_ix] = cov_grad * covscale
-        iszero(var1_ix) ||
-            (unconstrained_grad[var1_ix] += cov_grad * cov_val / (2 * var1))
-        iszero(var2_ix) ||
-            (unconstrained_grad[var2_ix] += cov_grad * cov_val / (2 * var2))
-    end
+    pullback_param_gradient!(
+        unconstrained_grad, model_grad, model_vals, transforms.linear_combinations)
+    pullback_param_gradient!(
+        unconstrained_grad, model_grad, model_vals, transforms.covariance_transforms)
     unconstrained_grad .*= scalar_derivatives
     return unconstrained_grad
 end

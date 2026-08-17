@@ -34,8 +34,6 @@ prepared = SEM.ParamTransforms(params, transforms)
 @testset "round trip and validation" begin
     unconstrained_vals = SEM.inverse_transform_params(prepared, target)
     @test SEM.transform_params(prepared, unconstrained_vals) ≈ target
-    @test fieldnames(typeof(prepared)) ==
-          (:transforms, :groups, :covariance_transforms)
     @test length(prepared.transforms) == length(params)
     @test all(group -> group.flips isa Vector{Bool}, prepared.groups)
     @test !SEM.allidentity(prepared)
@@ -285,6 +283,77 @@ end
         merge_params,
         [merge_params => covariance12, merge_params => covariance13],
     )
+end
+
+@testset "mean_transforms and derived-parameter linear combinations" begin
+    lc = SEM.mean_transforms([[1, 2, 3], [4, 5, 6]], 9)
+    @test lc.target_indices == [10, 11]
+    @test size(lc.matrix) == (2, 9)
+    @test SEM.nparams_derived(lc) == 2
+    @test Matrix(lc.matrix) ≈ [
+        1/3 1/3 1/3 0 0 0 0 0 0
+        0 0 0 1/3 1/3 1/3 0 0 0
+    ]
+    @test_throws ArgumentError SEM.mean_transforms(Vector{Int}[[]], 3)
+    @test_throws ArgumentError SEM.mean_transforms([[0, 1]], 3)
+    @test_throws ArgumentError SEM.mean_transforms([[1, 4]], 3)
+
+    model_vals = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 0.5, 0.5, 0.5, 0.0, 0.0]
+    SEM.apply_param_transforms!(model_vals, lc)
+    @test model_vals[10] ≈ 2.0
+    @test model_vals[11] ≈ 5.0
+
+    grad = zeros(9)
+    model_grad = vcat(zeros(9), [1.0, 1.0])
+    SEM.pullback_param_gradient!(grad, model_grad, nothing, lc)
+    @test grad ≈ [1 / 3, 1 / 3, 1 / 3, 1 / 3, 1 / 3, 1 / 3, 0, 0, 0]
+
+    # last_param_index can differ from the free-parameter bound (e.g. appending after
+    # other derived parameters already occupy some trailing indices)
+    lc2 = SEM.mean_transforms([[1, 2]], 9, 11)
+    @test lc2.target_indices == [12]
+
+    # ParamsMatrix-based convenience wrapper: groups each factor column's loadings by
+    # `row_groups` (e.g. samples grouped by plate) and averages within each group
+    loadings = Union{Float64, Symbol}[
+        :l1 0.0
+        :l2 0.0
+        :l3 0.0
+        0.0 :l4
+        0.0 :l5
+        0.0 :l6
+    ]
+    matrix = SEM.ParamsMatrix{Float64}(loadings, [:l1, :l2, :l3, :l4, :l5, :l6])
+    row_groups = [1, 1, 2, 1, 2, 2]
+    lc3 = SEM.mean_transforms(matrix, row_groups, 6)
+    @test lc3.target_indices == [7, 8, 9, 10]
+    grouped = Matrix(lc3.matrix)
+    @test grouped[1, :] ≈ [0.5, 0.5, 0, 0, 0, 0] # column 1, group 1: l1, l2
+    @test grouped[2, :] ≈ [0, 0, 1, 0, 0, 0]     # column 1, group 2: l3
+    @test grouped[3, :] ≈ [0, 0, 0, 1, 0, 0]     # column 2, group 1: l4
+    @test grouped[4, :] ≈ [0, 0, 0, 0, 0.5, 0.5] # column 2, group 2: l5, l6
+
+    # merge_param_transforms combines linear_combinations by derived-parameter name
+    src_free_pars = [:l1, :l2, :l3]
+    src_all_pars = [:l1, :l2, :l3, :avg]
+    src_trfs = SEM.ParamTransforms(
+        src_free_pars, fill(TV.asℝ, 3),
+        SEM.CovarianceTransforms(),
+        SEM.mean_transforms([[1, 2, 3]], 3),
+    )
+    target_pars = [:extra, :l1, :l2, :l3, :avg]
+    merged = SEM.merge_param_transforms(target_pars, [src_all_pars => src_trfs])
+    @test merged.linear_combinations.target_indices == [5]
+    merged_vals = SEM.transform_params(merged, [0.0, 1.0, 2.0, 3.0])
+    @test merged_vals[5] ≈ 2.0
+
+    conflicting_trfs = SEM.ParamTransforms(
+        src_free_pars, fill(TV.asℝ, 3),
+        SEM.CovarianceTransforms(),
+        SEM.mean_transforms([[1, 2]], 3), # averages only l1, l2, conflicts with src_trfs' l1,l2,l3
+    )
+    @test_throws ArgumentError SEM.merge_param_transforms(
+        target_pars, [src_all_pars => src_trfs, src_all_pars => conflicting_trfs])
 end
 
 @testset "model without transforms" begin
