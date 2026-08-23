@@ -273,6 +273,13 @@ end
         [merge_params => covariance12, merge_params => covariance21],
         merge_params,
     ).covariance_transforms.variance_sources == [(1, 2, 0.0, 0.0)]
+    pinned = SEM.merge_param_transforms(
+        [merge_params => covariance12],
+        [:v1, :covariance],
+        Dict(:v2 => 4.0, :v3 => 9.0),
+    )
+    @test pinned.covariance_transforms.covariance_indices == [2]
+    @test pinned.covariance_transforms.variance_sources == [(1, 0, 0.0, 4.0)]
     covariance13 = SEM.ParamTransforms(
         merge_params,
         fill(TV.asℝ, length(merge_params)),

@@ -585,6 +585,11 @@ Merge parameter transformations into `target_params` order. Each entry of
 checking; parameters shared by multiple sources must have identical scalar,
 covariance, and derived (linear-combination) definitions.
 
+Names listed in `param_to_value` are dropped from the free list. Covariance
+sources that were pinned become fixed variances, matching
+[`reorder_params`](@ref). A derived parameter that still depends on a pinned
+source is an error.
+
 Derived parameters declared by a source's `linear_combinations` must end up
 as the last entries of `target_params` (in some order), since a `ParamTransforms`
 requires its derived parameters to be contiguous and trailing; an `ArgumentError` is
@@ -593,6 +598,7 @@ thrown otherwise.
 function merge_param_transforms(
     transform_specs,
     target_params::AbstractVector{Symbol},
+    param_to_value::Union{AbstractDict{Symbol, <:Real}, Nothing} = nothing
 )
     allunique(target_params) ||
         throw(ArgumentError("Target parameter names must be unique"))
@@ -620,10 +626,18 @@ function merge_param_transforms(
         if !isnothing(trfs)
             cov_trf = trfs.covariance_transforms
             for (cov_ix, var_srcs) in zip(cov_trf.covariance_indices, cov_trf.variance_sources)
+                cov_param = src_pars[cov_ix]
+                !isnothing(param_to_value) && haskey(param_to_value, cov_param) && continue
                 conv_srcs = map(((var_srcs[1], var_srcs[3]),
                                  (var_srcs[2], var_srcs[4]))) do (src_var_ix, src_val)
                     iszero(src_var_ix) && return (true, 0, src_val)
                     var_par = src_pars[src_var_ix]
+                    var_val = !isnothing(param_to_value) ? get(param_to_value, var_par, nothing) : nothing
+                    if !isnothing(var_val)
+                        (isfinite(var_val) && var_val > 0) || throw(ArgumentError(
+                            "Pinned covariance-source :$var_par must be a positive finite variance, got $var_val"))
+                        return (true, 0, var_val)
+                    end
                     target_var_ix = get(target_par2ix, var_par, 0)
                     iszero(target_var_ix) && throw(ArgumentError(
                         "Variance parameter :$var_par is absent from the target parameters"))
@@ -640,13 +654,18 @@ function merge_param_transforms(
             lin_comb = trfs.linear_combinations
             for (row, src_der_ix) in enumerate(lin_comb.target_indices)
                 der_param = src_pars[src_der_ix]
+                !isnothing(param_to_value) && haskey(param_to_value, der_param) && continue
                 target_der_ix = get(target_par2ix, der_param, 0)
                 iszero(target_der_ix) && throw(ArgumentError(
                     "Derived parameter :$der_param is absent from the target parameters"))
-                srcs = Pair{Symbol, Float64}[
-                    src_pars[src_ix] => Float64(lin_comb.matrix[row, src_ix])
-                    for src_ix in 1:size(lin_comb.matrix, 2) if !iszero(lin_comb.matrix[row, src_ix])
-                ]
+                srcs = Pair{Symbol, Float64}[]
+                for src_ix in 1:size(lin_comb.matrix, 2)
+                    iszero(lin_comb.matrix[row, src_ix]) && continue
+                    src_param = src_pars[src_ix]
+                    !isnothing(param_to_value) && haskey(param_to_value, src_param) && throw(ArgumentError(
+                        "Cannot pin :$src_param because derived parameter :$der_param depends on it"))
+                    push!(srcs, src_param => Float64(lin_comb.matrix[row, src_ix]))
+                end
                 sort!(srcs; by = first)
                 if haskey(merged_lincomb_srcs, der_param)
                     isequal(merged_lincomb_srcs[der_param], srcs) || throw(ArgumentError(
@@ -660,8 +679,11 @@ function merge_param_transforms(
 
         for (src_ix, param) in enumerate(src_pars)
             target_ix = get(target_par2ix, param, 0)
-            iszero(target_ix) && throw(ArgumentError(
-                "Parameter :$param is absent from the target parameters"))
+            if iszero(target_ix)
+                !isnothing(param_to_value) && haskey(param_to_value, param) && continue
+                throw(ArgumentError(
+                    "Parameter :$param is absent from the target parameters"))
+            end
             src_ix > nfree_src && continue # derived parameter, handled above
 
             trf = isnothing(trfs) ? TransformVariables.asℝ : trfs.transforms[src_ix]
@@ -677,7 +699,7 @@ function merge_param_transforms(
             if haskey(merged_cov_trfs, target_ix)
                 isequal(merged_cov_trfs[target_ix], cov_var_srcs) ||
                     throw(ArgumentError(
-                        "Conflicting covariance transforms for parameter :$param"))
+                        "Conflicting covariance transforms for parameter :$param ($(merged_cov_trfs[target_ix]) vs $(cov_var_srcs))"))
             else
                 merged_cov_trfs[target_ix] = cov_var_srcs
             end
