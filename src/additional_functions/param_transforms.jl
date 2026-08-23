@@ -29,6 +29,9 @@ struct CovarianceTransforms{T <: Real}
     end
 end
 
+Base.valtype(::CovarianceTransforms{T}) where {T} = T
+Base.valtype(::Type{CovarianceTransforms{T}}) where {T} = T
+
 function CovarianceTransforms(
     covariance_indices::AbstractVector{<:Integer},
     variance_sources::AbstractVector{<:Tuple{Integer, Integer, Real, Real}},
