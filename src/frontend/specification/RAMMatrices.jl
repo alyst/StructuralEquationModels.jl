@@ -145,7 +145,7 @@ function RAMMatrices(ram::RAMMatrices;
             param_transforms === ram.param_transforms &&
             params != SEM.params(ram)
         param_transforms = merge_param_transforms(
-            params, [SEM.params(ram) => param_transforms])
+            [SEM.params(ram) => param_transforms], params)
     end
     return RAMMatrices(;
         A = materialize(ram.A, SEM.params(ram)),

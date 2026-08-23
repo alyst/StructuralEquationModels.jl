@@ -574,7 +574,7 @@ function check_model_params_vector(vec::AbstractVector, transforms::ParamTransfo
 end
 
 """
-    merge_param_transforms(target_params, transform_specs)
+    merge_param_transforms(transform_specs, target_params, param_to_value=nothing)
 
 Merge parameter transformations into `target_params` order. Each entry of
 `transform_specs` is `source_params => transforms`, where `transforms` may be
@@ -588,7 +588,8 @@ requires its derived parameters to be contiguous and trailing; an `ArgumentError
 thrown otherwise.
 """
 function merge_param_transforms(
-    target_params::AbstractVector{Symbol}, transform_specs
+    transform_specs,
+    target_params::AbstractVector{Symbol},
 )
     allunique(target_params) ||
         throw(ArgumentError("Target parameter names must be unique"))

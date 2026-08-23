@@ -109,8 +109,7 @@ In that case, you may use RAMMatrices instead.")
         SEM.params(term) => param_transforms(imply(term))
         for term in terms_tuple if issemloss(term)
     ]
-    merged_param_transforms = merge_param_transforms(params, transform_specs)
-    return Sem(terms_tuple, params, merged_param_transforms, metadata)
+    return Sem(terms_tuple, params, merge_param_transforms(transform_specs, params), metadata)
 end
 
 ############################################################################################

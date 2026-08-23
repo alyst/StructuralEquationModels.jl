@@ -246,7 +246,7 @@ end
         :location, :variance2, :unused, :variance1,
         :covariance1fixed, :covariance12]
     remapped = SEM.merge_param_transforms(
-        reordered_params, [covariance_params => coupled])
+        [covariance_params => coupled], reordered_params)
     reordered_target = [0.7, 9.0, 2.0, 4.0, -4.0, 3.0]
     @test SEM.transform_params(
         remapped, SEM.inverse_transform_params(remapped, reordered_target)) ≈
@@ -254,7 +254,7 @@ end
 
     positive = SEM.ParamTransforms([:variance], Dict(:variance => TV.asℝ₊))
     @test_throws ArgumentError SEM.merge_param_transforms(
-        [:variance], [[:variance] => positive, [:variance] => nothing])
+        [[:variance] => positive, [:variance] => nothing], [:variance])
 
     merge_params = [:v1, :v2, :v3, :covariance]
     covariance12 = SEM.ParamTransforms(
@@ -270,8 +270,8 @@ end
             [4], [(2, 1, 0.0, 0.0)], length(merge_params)),
     )
     @test SEM.merge_param_transforms(
-        merge_params,
         [merge_params => covariance12, merge_params => covariance21],
+        merge_params,
     ).covariance_transforms.variance_sources == [(1, 2, 0.0, 0.0)]
     covariance13 = SEM.ParamTransforms(
         merge_params,
@@ -280,8 +280,8 @@ end
             [4], [(1, 3, 0.0, 0.0)], length(merge_params)),
     )
     @test_throws ArgumentError SEM.merge_param_transforms(
-        merge_params,
         [merge_params => covariance12, merge_params => covariance13],
+        merge_params,
     )
 end
 
@@ -342,7 +342,7 @@ end
         SEM.mean_transforms([[1, 2, 3]], 3),
     )
     target_pars = [:extra, :l1, :l2, :l3, :avg]
-    merged = SEM.merge_param_transforms(target_pars, [src_all_pars => src_trfs])
+    merged = SEM.merge_param_transforms([src_all_pars => src_trfs], target_pars)
     @test merged.linear_combinations.target_indices == [5]
     merged_vals = SEM.transform_params(merged, [0.0, 1.0, 2.0, 3.0])
     @test merged_vals[5] ≈ 2.0
@@ -353,7 +353,7 @@ end
         SEM.mean_transforms([[1, 2]], 3), # averages only l1, l2, conflicts with src_trfs' l1,l2,l3
     )
     @test_throws ArgumentError SEM.merge_param_transforms(
-        target_pars, [src_all_pars => src_trfs, src_all_pars => conflicting_trfs])
+        [src_all_pars => src_trfs, src_all_pars => conflicting_trfs], target_pars)
 end
 
 @testset "model without transforms" begin
