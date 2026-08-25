@@ -756,6 +756,128 @@ function merge_param_transforms(
 end
 
 """
+    reorder_params(transforms, params, new_params, param_to_value=nothing)
+
+Rewrite `transforms` onto `new_params` without rebuilding the RAM matrices.
+Names listed in `param_to_value` are dropped from the free list. Covariance
+sources that were pinned become fixed variances. A derived parameter that
+still depends on a pinned source is an error.
+"""
+function reorder_params(
+    transforms::ParamTransforms,
+    params::AbstractVector{Symbol},
+    new_params::AbstractVector{Symbol},
+    param_to_value::Union{Nothing, AbstractDict{Symbol, <:Real}} = nothing,
+)
+    check_params_reordering(nparams(transforms), params, new_params, param_to_value)
+
+    nfree_old = nparams_free(transforms)
+    old_derived_pars = Set(view(params, (nfree_old + 1):length(params)))
+    par2ix = Dict(param => i for (i, param) in enumerate(params))
+    new_par2ix = Dict(param => i for (i, param) in enumerate(new_params))
+    new_pars_derived = Symbol[]
+    new_pars_free = Symbol[]
+    for param in new_params
+        if param in old_derived_pars
+            push!(new_pars_derived, param)
+        else
+            push!(new_pars_free, param)
+        end
+    end
+    nnew_pars_free = length(new_pars_free)
+    new_params == vcat(new_pars_free, new_pars_derived) || throw(ArgumentError(
+        "Derived parameters must remain the trailing entries of new_params"))
+
+    scalar_transforms = Vector{Any}(undef, nnew_pars_free)
+    for (new_ix, par) in enumerate(new_pars_free)
+        old_ix = get(par2ix, par, 0)
+        iszero(old_ix) && throw(ArgumentError("Parameter :$par is absent from old_params"))
+        old_ix > nfree_old && throw(ArgumentError("Derived parameter :$par cannot become a free parameter"))
+        scalar_transforms[new_ix] = transforms.transforms[old_ix]
+    end
+
+    function _replace_cov_param_var_source(old_ix, fixed_val)
+        iszero(old_ix) && return (0, fixed_val)
+        src_param = params[old_ix]
+        if !isnothing(param_to_value) && haskey(param_to_value, src_param)
+            pinned = param_to_value[src_param]
+            (isfinite(pinned) && pinned > 0) || throw(ArgumentError(
+                "Pinned covariance-source :$src_param must be a positive finite variance, got $pinned"))
+            return (0, pinned)
+        end
+        new_ix = get(new_par2ix, src_param, 0)
+        iszero(new_ix) && throw(ArgumentError("Variance source :$src_param is absent from new_params"))
+        return (new_ix, 0.0)
+    end
+
+    T = valtype(transforms.covariance_transforms)
+    cov_ixs = Int[]
+    var_srcs = Tuple{Int, Int, T, T}[]
+    cov_trf = transforms.covariance_transforms
+    for (old_cov_ix, (old_var1, old_var2, old_val1, old_val2)) in zip(cov_trf.covariance_indices, cov_trf.variance_sources)
+        cov_par = params[old_cov_ix]
+        !isnothing(param_to_value) && haskey(param_to_value, cov_par) && continue
+        new_cov_ix = new_par2ix[cov_par] # must be present in the new array
+
+        new_var1, new_val1 = _replace_cov_param_var_source(old_var1, old_val1)
+        new_var2, new_val2 = _replace_cov_param_var_source(old_var2, old_val2)
+        if isless((iszero(new_var2), new_var2, new_val2), (iszero(new_var1), new_var1, new_val1))
+            new_var1, new_var2 = new_var2, new_var1
+            new_val1, new_val2 = new_val2, new_val1
+        end
+        push!(cov_ixs, new_cov_ix)
+        push!(var_srcs, (new_var1, new_var2, new_val1, new_val2))
+    end
+
+    lincomb_trf = LinearCombinationTransforms()
+    LT = eltype(lincomb_trf.matrix)
+    if !isempty(transforms.linear_combinations)
+        lin = transforms.linear_combinations
+        rows = Int[]
+        cols = Int[]
+        vals = LT[]
+        der_row = 0
+        expected_derived = Symbol[]
+        for (row, old_der_ix) in enumerate(lin.target_indices)
+            der_param = params[old_der_ix]
+            !isnothing(param_to_value) && haskey(param_to_value, der_param) && continue
+            haskey(new_par2ix, der_param) || throw(ArgumentError(
+                "Derived parameter :$der_param is absent from new_params"))
+            der_row += 1
+            push!(expected_derived, der_param)
+            for src_ix in 1:size(lin.matrix, 2)
+                weight = lin.matrix[row, src_ix]
+                iszero(weight) && continue
+                src_param = params[src_ix]
+                !isnothing(param_to_value) && haskey(param_to_value, src_param) &&
+                    throw(ArgumentError(
+                        "Cannot pin :$src_param because derived parameter :$der_param depends on it"))
+                new_src_ix = get(new_par2ix, src_param, 0)
+                (iszero(new_src_ix) || new_src_ix > nnew_pars_free) && throw(ArgumentError(
+                    "Derived parameter :$der_param depends on :$src_param, " *
+                    "which is not among the new free parameters"))
+                push!(rows, der_row)
+                push!(cols, new_src_ix)
+                push!(vals, weight)
+            end
+        end
+        expected_derived == new_pars_derived || throw(ArgumentError(
+            "Derived parameter order changed while replacing parameters"))
+        if der_row > 0
+            lincomb_trf = LinearCombinationTransforms(
+                sparse(rows, cols, vals, der_row, nnew_pars_free), nnew_pars_free)
+        end
+    end
+
+    if isempty(cov_ixs) && isempty(lincomb_trf) &&
+            all(==(TransformVariables.asℝ), scalar_transforms)
+        return nothing
+    end
+    cov_trfs = CovarianceTransforms(cov_ixs, var_srcs, length(new_params))
+    return ParamTransforms(new_pars_free, scalar_transforms, cov_trfs, lincomb_trf)
+end
+
+"""
     var1_var2_covscale(model_vals, variance_source)
 
 Return the two covariance-source variances and their geometric-mean covariance
