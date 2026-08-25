@@ -137,23 +137,44 @@ function RAMMatrices(; A::AbstractMatrix, S::AbstractMatrix,
     return RAMMatrices(A, S, F, M, copy(params), colnames, param_transforms)
 end
 
-# copy RAMMatrices replacing the parameters vector
-function RAMMatrices(ram::RAMMatrices;
-                     params::AbstractVector{Symbol} = SEM.params(ram),
-                     param_transforms = ram.param_transforms)
-    if param_transforms isa ParamTransforms &&
-            param_transforms === ram.param_transforms &&
-            params != SEM.params(ram)
-        param_transforms = merge_param_transforms(
-            [SEM.params(ram) => param_transforms], params)
+"""
+    reorder_params(ram, new_params, [param_to_value], [param_transforms])
+
+Rewrite `ram` onto `new_params` without materializing `A`/`S`/`M`. Names in
+`param_to_value` are pinned to those constants and dropped from the free
+parameter list. When `param_transforms` is omitted, the existing transforms
+are remapped the same way, converting covariance sources that were pinned
+into fixed variances.
+"""
+function reorder_params(
+    ram::RAMMatrices,
+    new_params::AbstractVector{Symbol},
+    param_to_value::Union{Nothing, AbstractDict{Symbol, <:Real}} = nothing,
+    param_transforms = nothing,
+)
+    check_params_reordering(nparams(ram), SEM.params(ram), new_params, param_to_value)
+    old_pars = params(ram)
+    A = reorder_params(ram.A, old_pars, new_params, param_to_value)
+    S = reorder_params(ram.S, old_pars, new_params, param_to_value)
+    M = !isnothing(ram.M) ? reorder_params(ram.M, old_pars, new_params, param_to_value) : nothing
+    trfs = !isnothing(param_transforms) ? param_transforms :
+        !isnothing(ram.param_transforms) ? reorder_params(ram.param_transforms, old_pars, new_params, param_to_value) :
+        nothing
+    if trfs isa ParamTransforms
+        nparams(trfs) == length(new_params) || throw(DimensionMismatch(
+            "The number of parameter transformations ($(nparams(trfs))) does not " *
+            "match the number of model parameters ($(length(new_params)))"))
+        allidentity(trfs) && (trfs = nothing)
     end
-    return RAMMatrices(;
-        A = materialize(ram.A, SEM.params(ram)),
-        S = materialize(ram.S, SEM.params(ram)),
-        F = copy(ram.F),
-        M = !isnothing(ram.M) ? materialize(ram.M, SEM.params(ram)) : nothing,
-        params, colnames = ram.colnames, param_transforms)
+    return RAMMatrices(A, S, copy(ram.F), M, new_params, copy(ram.colnames), trfs)
 end
+
+# copy RAMMatrices replacing the parameters vector
+RAMMatrices(ram::RAMMatrices;
+            params::AbstractVector{Symbol} = SEM.params(ram),
+            param_to_value::Union{Nothing, AbstractDict{Symbol, <:Real}} = nothing,
+            param_transforms = nothing) =
+    reorder_params(ram, params, param_to_value, param_transforms)
 
 ############################################################################################
 ### get RAMMatrices from parameter table
