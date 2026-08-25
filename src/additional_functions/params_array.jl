@@ -243,3 +243,57 @@ function filter_used_params(linearindex_test, arr::ParamsArray)
 end
 
 filter_used_params(arr::ParamsArray) = filter_used_params(nothing, arr)
+
+function check_params_reordering(
+    nparams::Integer,
+    old_params::AbstractVector{Symbol},
+    new_params::AbstractVector{Symbol},
+    param_to_value::Union{Nothing, AbstractDict{Symbol, <:Real}} = nothing,
+)
+    nparams == length(old_params) || throw(DimensionMismatch(
+        "Expected $nparams current parameters, got $(length(old_params)) names"))
+    allunique(old_params) || throw(ArgumentError("current params must be unique"))
+
+    length(new_params) + (param_to_value === nothing ? 0 : length(param_to_value)) >= nparams ||
+        throw(DimensionMismatch(
+            "Total number of new parameters and pinned parameters must be greater than the number of parameters in the array"))
+    allunique(new_params) || throw(ArgumentError("new_params must be unique"))
+    return nothing
+end
+
+"""
+    reorder_params(arr, params, new_params, param_to_value=nothing)
+
+Rewrite a [`ParamsArray`](@ref) reindexing the parameters from `params` to
+the `new_params` order and optionally replacing free parameters with fixed values
+from the `param_to_value` map.
+"""
+function reorder_params(
+    arr::ParamsArray{T, N},
+    params::AbstractVector{Symbol},
+    new_params::AbstractVector{Symbol},
+    param_to_value::Union{Nothing, AbstractDict{Symbol, <:Real}} = nothing,
+) where {T, N}
+    check_params_reordering(nparams(arr), params, new_params, param_to_value)
+
+    new_map = [Int[] for _ in new_params]
+    par2new_ix = Dict{Symbol, Int}(par => i for (i, par) in enumerate(new_params))
+    new_consts = Pair{Int, T}[c[1] => convert(T, c[3]) for c in arr.constants]
+
+    for (i, param) in enumerate(params)
+        lin_ixs = param_occurences(arr, i)
+        isempty(lin_ixs) && continue
+        fixed_val = !isnothing(param_to_value) ? get(param_to_value, param, nothing) : nothing
+        if !isnothing(fixed_val)
+            for lin_ix in lin_ixs
+                push!(new_consts, lin_ix => convert(T, fixed_val))
+            end
+        else
+            new_i = get(par2new_ix, param, 0)
+            iszero(new_i) && throw(ArgumentError(
+                "Parameter :$param still occurs in the array but is absent from new_params"))
+            append!(new_map[new_i], lin_ixs)
+        end
+    end
+    return ParamsArray{T, N}(new_map, new_consts, size(arr))
+end

@@ -98,7 +98,7 @@ include("frontend/fit/standard_errors/bootstrap.jl")
 
 export  ParamsArray, ParamsMatrix, ParamsVector,
             param_occurences, param_occurences_range,
-            materialize, materialize!,
+            materialize, materialize!, reorder_params,
             sparse_gradient, sparse_gradient!, sparse_materialize,
         ParamTransforms, CovarianceTransforms, LinearCombinationTransforms, mean_transforms,
             param_transforms, merge_param_transforms,
