@@ -55,13 +55,12 @@ else
     @test SEM.convergence(model_space_fit) in successful_statuses
     @test SEM.convergence(unconstrained_space_fit) in successful_statuses
 end
-@test SEM.minimum(unconstrained_space_fit) ≈
-      SEM.minimum(model_space_fit) rtol = 1e-8
+@test objective(unconstrained_space_fit) ≈ objective(model_space_fit) rtol = 1e-8
 @test SEM.solution(unconstrained_space_fit) ≈
       SEM.solution(model_space_fit) rtol = 1e-4
-@test SEM.objective(
+@test objective(
           unconstrained_space_model, SEM.solution(unconstrained_space_fit)) ≈
-      SEM.minimum(unconstrained_space_fit) rtol = 1e-12
+      objective(unconstrained_space_fit) rtol = 1e-12
 
 backend_minimizer = if opt_engine == :Optim
     SEM.Optim.minimizer(unconstrained_space_fit.optimization_result)

@@ -7,7 +7,7 @@
 Fitted structural equation model.
 
 # Interfaces
-- `minimum(::SemFit)` -> minimum objective value
+- `objective(::SemFit)` -> fitted objective value
 - `solution(::SemFit)` -> parameter estimates
 - `start_params(::SemFit)` -> starting parameter values
 - `model(::SemFit)`
@@ -22,7 +22,7 @@ retains its unconstrained-space minimizer.
 - `convergence(::SemFit)` -> convergence properties
 """
 mutable struct SemFit{Mi, So, St, Mo, O}
-    minimum::Mi
+    objective::Mi
     solution::So
     start_params::St
     model::Mo
@@ -40,7 +40,7 @@ function Base.show(io::IO, semfit::SemFit)
     println(io, "===============================================")
     println(io, "- $(nparams(semfit)) parameters")
     println(io)
-    #print(io, "Objective value: $(round(semfit.minimum, digits = 4)) \n")
+    #print(io, "Objective value: $(round(semfit.objective, digits = 4)) \n")
     println(io, "------------- Optimization result -------------")
     println(io)
     println(io, semfit.optimization_result)
@@ -67,11 +67,12 @@ end
 ############################################################################################
 
 # access fields
-minimum(sem_fit::SemFit) = sem_fit.minimum
+objective(sem_fit::SemFit) = sem_fit.objective
 solution(sem_fit::SemFit) = sem_fit.solution
 start_params(sem_fit::SemFit) = sem_fit.start_params
 model(sem_fit::SemFit) = sem_fit.model
 optimization_result(sem_fit::SemFit) = sem_fit.optimization_result
+Optim.minimum(sem_fit::SemFit) = objective(sem_fit) # Optim.jl compatibility
 metadata(fit::SemFit) = metadata(model(fit))
 
 # optimizer properties

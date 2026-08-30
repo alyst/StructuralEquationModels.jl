@@ -28,10 +28,10 @@ function SEM.sem_fit(
         )
     end
 
-    minimum = objective!(model, solution)
+    sol_obj = objective!(model, solution)
 
     optimization_result = Dict(
-        :minimum => minimum,
+        :minimum => sol_obj,
         :iterations => iterations,
         :algorithm => optim.algorithm,
         :operator_g => optim.operator_g)
@@ -40,7 +40,7 @@ function SEM.sem_fit(
         push!(optimization_result, :operator_h => optim.operator_h)
 
     return SemFit(
-        minimum,
+        sol_obj,
         solution,
         start_params,
         model,
@@ -54,7 +54,7 @@ end
 ############################################################################################
 
 function Base.show(io::IO, result::ProximalResult)
-    print(io, "Minimum:          $(round(result.result[:minimum]; digits = 2)) \n")
+    print(io, "Objective:        $(round(result.result[:minimum]; digits = 2)) \n")
     print(io, "No. evaluations:  $(result.result[:iterations]) \n")
     print(io, "Operator:         $(nameof(typeof(result.result[:operator_g]))) \n")
     if haskey(result.result, :operator_h)

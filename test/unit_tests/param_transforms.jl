@@ -405,7 +405,7 @@ end
     fit = SEM.sem_fit(optimizer, ram_model; start_params = SEM.start_simple)
     @test start_params(fit) == [1.0, 1.0]
     @test fit.solution ≈ [2.0, 0.5] atol = 1e-7
-    @test SEM.objective(ram_model, fit.solution) ≈ fit.minimum atol = 1e-12
+    @test objective(ram_model, fit.solution) ≈ objective(fit) atol = 1e-12
 
     unconstrained_vals = SEM.inverse_transform_params(
         SEM.param_transforms(ram_model), fit.solution)
@@ -472,6 +472,5 @@ end
         sparse_observed, SEM.RAMLargeSparse(sparse_ram)))
     sparse_fit = SEM.sem_fit(optimizer, sparse_model, [1.0])
     @test sparse_fit.solution ≈ [1.9] atol = 1e-7
-    @test SEM.objective(sparse_model, sparse_fit.solution) ≈
-          sparse_fit.minimum atol = 1e-12
+    @test objective(sparse_model, sparse_fit.solution) ≈ objective(sparse_fit) atol = 1e-12
 end

@@ -50,11 +50,11 @@ function sem_fit(
 
     ...
 
-    return SemFit(minimum, minimizer, start_params, model, optimization_result)
+    return SemFit(objective, solution, start_params, model, optimization_result)
 end
 ```
 
-The method has to return a `SemFit` object that consists of the minimum of the objective at the solution, the minimizer (aka parameter estimates), the starting values, the model and the optimization result (which may be anything you desire for your specific backend).
+The method has to return a `SemFit` object that consists of the objective value at the solution, the solution (the vector of parameter estimates), the starting values, the model and the optimization result (which may be anything you desire for your specific backend).
 
 If we want our type to also work with `SemEnsemble` models, we also have to provide a method for that:
 
@@ -73,7 +73,7 @@ function sem_fit(
 
     ...
 
-    return SemFit(minimum, minimizer, start_params, model, optimization_result)
+    return SemFit(objective, solution, start_params, model, optimization_result)
 
 end
 ```

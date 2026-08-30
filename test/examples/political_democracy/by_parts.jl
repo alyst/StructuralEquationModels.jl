@@ -54,7 +54,7 @@ end
     solution_ridge = sem_fit(semoptimizer, model_ml_ridge)
     solution_ml = sem_fit(semoptimizer, model_ml)
     # solution_ridge_id = sem_fit(model_ridge_id)
-    @test abs(solution_ridge.minimum - solution_ml.minimum) < 1
+    @test abs(objective(solution_ridge) - objective(solution_ml)) < 1
 end
 
 # test constant objective value
@@ -70,8 +70,7 @@ end
     solution_ml = sem_fit(semoptimizer, model_ml)
     solution_ml_weighted = sem_fit(semoptimizer, model_ml_weighted)
     @test solution(solution_ml) ≈ solution(solution_ml_weighted) rtol = 1e-3
-    @test n_obs(model_ml)*StructuralEquationModels.minimum(solution_ml) ≈
-        StructuralEquationModels.minimum(solution_ml_weighted) rtol = 1e-6
+    @test n_obs(model_ml)*objective(solution_ml) ≈ objective(solution_ml_weighted) rtol = 1e-6
 end
 
 ############################################################################################

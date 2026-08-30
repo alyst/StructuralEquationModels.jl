@@ -11,10 +11,8 @@ function minus2ll end
 
 minus2ll(fit::SemFit) = minus2ll(fit.model, fit)
 
-function minus2ll(term::SemLoss, fit::SemFit)
-    minimum = objective(term, fit.solution)
-    return minus2ll(term, minimum)
-end
+minus2ll(term::SemLoss, fit::SemFit) =
+    minus2ll(term, objective(term, fit.solution))
 
 minus2ll(term::SemML, minimum::Number) =
     n_obs(term) * (minimum + log(2π) * n_man(term))

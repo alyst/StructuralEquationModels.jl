@@ -28,7 +28,7 @@ function χ²(fit::SemFit, model::AbstractSem)
     return χ²(typeof(term1), fit, model)
 end
 
-χ²(::Type{<:SemWLS}, fit::SemFit, model::AbstractSem) = (n_obs(model) - 1) * fit.minimum
+χ²(::Type{<:SemWLS}, fit::SemFit, model::AbstractSem) = (n_obs(model) - 1) * objective(fit)
 
 # TODO: implement χ² for individual SemML term
 
@@ -42,7 +42,7 @@ function χ²(::Type{<:SemML}, fit::SemFit, model::AbstractSem)
                 return 0.0
             end
         end
-    return (n_obs(model) - 1) * (fit.minimum - G)
+    return (n_obs(model) - 1) * (objective(fit) - G)
 end
 
 function χ²(::Type{<:SemFIML}, fit::SemFit, model::AbstractSem)
