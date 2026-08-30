@@ -225,9 +225,9 @@ function trunc_eigvals(
         end
     end
     verbose &&
-        @info "min(eigvals($mtx_label))=$(Base.minimum(mtx_eig.values)), N(eigvals < $min_eigval) = $(sum(<(min_eigval), mtx_eig.values))"
+        @info "min(eigvals($mtx_label))=$(minimum(mtx_eig.values)), N(eigvals < $min_eigval) = $(sum(<(min_eigval), mtx_eig.values))"
 
-    eigmin = Base.minimum(mtx_eig.values)
+    eigmin = minimum(mtx_eig.values)
     if eigmin < min_eigval
         # substitute small eigvals with min_eigval
         eigvals_mtx = Diagonal(max.(mtx_eig.values, min_eigval))
