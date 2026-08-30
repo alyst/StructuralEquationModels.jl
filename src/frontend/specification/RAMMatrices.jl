@@ -157,9 +157,15 @@ function reorder_params(
     A = reorder_params(ram.A, old_pars, new_params, param_to_value)
     S = reorder_params(ram.S, old_pars, new_params, param_to_value)
     M = !isnothing(ram.M) ? reorder_params(ram.M, old_pars, new_params, param_to_value) : nothing
-    trfs = !isnothing(param_transforms) ? param_transforms :
-        !isnothing(ram.param_transforms) ? reorder_params(ram.param_transforms, old_pars, new_params, param_to_value) :
-        nothing
+    trfs = if isnothing(param_transforms)
+        !isnothing(ram.param_transforms) ?
+            reorder_params(ram.param_transforms, old_pars, new_params, param_to_value) :
+            nothing
+    elseif param_transforms isa ParamTransforms
+        param_transforms
+    else
+        ParamTransforms(new_params, param_transforms)
+    end
     if trfs isa ParamTransforms
         nparams(trfs) == length(new_params) || throw(DimensionMismatch(
             "The number of parameter transformations ($(nparams(trfs))) does not " *

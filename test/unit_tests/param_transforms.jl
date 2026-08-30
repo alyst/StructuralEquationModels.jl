@@ -440,8 +440,10 @@ end
     @test SEM.nonidentity_transformed_params(
         SEM.params(expanded_ram),
         SEM.param_transforms(expanded_ram)) == Set([:v1, :v2])
-    @test isnothing(SEM.param_transforms(
-        SEM.RAMMatrices(ram; param_transforms = nothing)))
+    retained_ram = SEM.RAMMatrices(ram; param_transforms = nothing)
+    @test SEM.nonidentity_transformed_params(
+        SEM.params(retained_ram),
+        SEM.param_transforms(retained_ram)) == Set([:v1, :v2])
 
     conflicting_ram = SEM.RAMMatrices(
         ram;
