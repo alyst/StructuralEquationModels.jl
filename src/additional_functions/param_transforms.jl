@@ -184,11 +184,11 @@ CovarianceTransforms(
     S::AbstractMatrix,
     params::AbstractVector{Symbol},
     skip_params::Union{AbstractVector{<:Integer}, Nothing} = nothing;
-    skip_multiple_variance_pairs::Bool = false,
+    skip_conflicting_variances::Bool = false,
 ) = CovarianceTransforms(
     ParamsMatrix{Float64}(S, params);
     skip_params,
-    skip_multiple_variance_pairs,
+    skip_conflicting_variances,
 )
 
 Base.isempty(transforms::CovarianceTransforms) = isempty(transforms.covariance_indices)
