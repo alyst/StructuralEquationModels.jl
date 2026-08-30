@@ -1,5 +1,20 @@
 ## Interface to the StenoGraphs package
 
+# StenoGraphs 0.4.4 constructs node calls with `Symbol(SimpleNode)`. On Julia
+# versions where that produces Symbol("StenoGraphs.SimpleNode"), the upstream
+# macro emits a reference to a nonexistent variable with a dotted name. Keep
+# SEM's public macro usable without overwriting any StenoGraphs methods.
+function _repair_stenograph_macro_expr(ex)
+    ex === Symbol("StenoGraphs.SimpleNode") &&
+        return GlobalRef(StenoGraphs, :SimpleNode)
+    ex isa Expr || return ex
+    return Expr(ex.head, map(_repair_stenograph_macro_expr, ex.args)...)
+end
+
+macro StenoGraph(ex)
+    return _repair_stenograph_macro_expr(StenoGraphs.StenoGraph_macro(ex))
+end
+
 ############################################################################################
 ### Define Modifiers
 ############################################################################################

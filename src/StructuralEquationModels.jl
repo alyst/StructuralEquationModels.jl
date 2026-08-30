@@ -4,10 +4,14 @@ using LinearAlgebra, Optim,
     NLSolversBase, Statistics, StatsBase, SparseArrays, Symbolics,
     TransformVariables,
     FiniteDiff, PrettyTables,
-    Distributions, StenoGraphs, LazyArtifacts, DelimitedFiles,
+    Distributions, LazyArtifacts, DelimitedFiles,
     DataFrames,
     ProgressMeter, Printf,
     PackageExtensionCompat
+import StenoGraphs
+using StenoGraphs:
+    EdgeModifier, ModifiedEdge, DirectedEdge, UndirectedEdge,
+    meld, →, ←, ↔, ⇔
 
 export StenoGraphs, @StenoGraph, meld
 
