@@ -603,10 +603,27 @@ function update_Σ⁻¹_sparse!(implied::RAMLargeSparse)
     # This does not involve any latent variables (dependent or stochastic), so it is
     # unaffected by the presence of dependent (structural-zero-variance) latents.
     Σ⁻¹oo = Symmetric(implied._Σ⁻¹oo_buf)
-    if iszeroAoo(implied)
-        # Σ⁻¹oo = Soo⁻¹, skip the multiplications by I_Aoo
+    if isnothing(implied._Σ)
+        # Reuse the otherwise-idle covariance buffer as a dense RHS. CHOLMOD's
+        # `PtL \ sparse(I_Aoo)` path allocates several nobs×nobs temporaries;
+        # solving Soo * X = I_Aoo into the precision buffer allocates only
+        # CHOLMOD's one dense result and is algebraically equivalent.
+        rhs = implied._Σ_buf
+        copyto!(rhs, implied.I_Aoo)
+        ldiv!(parent(Σ⁻¹oo), implied._Soo_chol, rhs)
+        if !iszeroAoo(implied)
+            # rhs = I_Aooᵀ Soo⁻¹ I_Aoo, then retain the result in the
+            # dedicated precision buffer. The sparse left factor makes this
+            # multiplication cheap relative to the solve.
+            mul!(rhs, transpose(parent(implied.I_Aoo)), parent(Σ⁻¹oo))
+            copyto!(parent(Σ⁻¹oo), rhs)
+        end
+    elseif iszeroAoo(implied)
+        # Preserve an already-materialized Σ buffer. This less common access
+        # order retains the allocating fallback rather than corrupting Σ.
         copy!(parent(Σ⁻¹oo), implied._Soo_chol \ implied.I_Aoo)
     else
+        # Preserve an already-materialized Σ buffer.
         # parent() because CHOLMOD dispatch does not support triangular matrices:
         # the dispatch goes to generic triangular matrices
         Soo⁻½⨉I_Aoo = implied._Soo_chol.PtL \ parent(implied.I_Aoo)

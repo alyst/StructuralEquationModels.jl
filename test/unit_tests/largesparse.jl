@@ -67,3 +67,53 @@ dense_objective = SEM.objective_gradient!(
         (path_counts[1], path_counts[2], path_counts[3] + 1)
     @test (sparse.n_fast, sparse.n_fast_failed, sparse.n_slow) == expected_counts
 end
+
+@testset "fast precision access before covariance with observed regressions" begin
+    regression_ram = SEM.RAMMatrices(
+        A = Union{Float64, Symbol}[
+            0.0 :observed_regression :loading_1
+            0.0 0.0                  :loading_2
+            0.0 0.0                   0.0
+        ],
+        S = Union{Float64, Symbol}[
+            :residual_variance_1 0.0                  0.0
+            0.0                  :residual_variance_2 0.0
+            0.0                   0.0                 :latent_variance
+        ],
+        F = [
+            1.0 0.0 0.0
+            0.0 1.0 0.0
+        ],
+        params = [
+            :observed_regression,
+            :loading_1,
+            :loading_2,
+            :residual_variance_1,
+            :residual_variance_2,
+            :latent_variance,
+        ],
+        colnames = [:y1, :y2, :factor],
+    )
+    regression_values = [0.15, 0.4, -0.25, 0.7, 0.9, 1.2]
+
+    dense = SEM.RAM(regression_ram)
+    SEM.update!(targets, dense, regression_values)
+    expected_Σ = Matrix(dense.Σ)
+    expected_Σ⁻¹ = inv(expected_Σ)
+
+    precision_first = SEM.RAMLargeSparse(regression_ram; simplify = false)
+    SEM.update!(targets, precision_first, regression_values)
+    @test Matrix(precision_first.Σ⁻¹) ≈ expected_Σ⁻¹
+    # Computing Σ afterwards reuses its buffer without corrupting the cached
+    # precision, which lives in a separate buffer.
+    @test Matrix(precision_first.Σ) ≈ expected_Σ
+    @test Matrix(precision_first.Σ⁻¹) ≈ expected_Σ⁻¹
+    @test precision_first.n_fast == 1
+    @test precision_first.n_fast_failed == 0
+    @test precision_first.n_slow == 0
+
+    covariance_first = SEM.RAMLargeSparse(regression_ram; simplify = false)
+    SEM.update!(targets, covariance_first, regression_values)
+    @test Matrix(covariance_first.Σ) ≈ expected_Σ
+    @test Matrix(covariance_first.Σ⁻¹) ≈ expected_Σ⁻¹
+end
