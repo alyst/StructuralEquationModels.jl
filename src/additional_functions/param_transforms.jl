@@ -791,9 +791,15 @@ function reorder_params(
     scalar_transforms = Vector{Any}(undef, nnew_pars_free)
     for (new_ix, par) in enumerate(new_pars_free)
         old_ix = get(par2ix, par, 0)
-        iszero(old_ix) && throw(ArgumentError("Parameter :$par is absent from old_params"))
-        old_ix > nfree_old && throw(ArgumentError("Derived parameter :$par cannot become a free parameter"))
-        scalar_transforms[new_ix] = transforms.transforms[old_ix]
+        if iszero(old_ix)
+            # ParamsArray reordering permits new, currently unused parameters.
+            # Their scalar transform must likewise default to identity.
+            scalar_transforms[new_ix] = TransformVariables.asℝ
+        else
+            old_ix > nfree_old && throw(ArgumentError(
+                "Derived parameter :$par cannot become a free parameter"))
+            scalar_transforms[new_ix] = transforms.transforms[old_ix]
+        end
     end
 
     function _replace_cov_param_var_source(old_ix, fixed_val)
